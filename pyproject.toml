@@ -1,0 +1,28 @@
+[build-system]
+requires = [
+  "setuptools>=77.0.3",
+  "wheel",
+  "numpy"
+]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "classtrees"
+version = "1.0.0"
+requires-python = ">=3.10"
+authors = [
+  {name = "Abc Def", email = "abc@def.com"}
+]
+maintainers = [
+  {name = "Abc Def", email = "abc@def.com"}
+]
+description = "Python package implementing classification trees."
+readme = "README.md"
+license = {file = "LICENSE"}
+keywords = ["tree", "classification", "samples", "machine learning"]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Programming Language :: Python"
+]
+[project.optional-dependencies]
+test = ["pytest"]
