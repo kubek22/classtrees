@@ -3,10 +3,10 @@ import numpy
 
 ext_modules = [
     Extension(
-        "classtrees.tree",
-        sources=["src/classtrees/tree.c"],
-        include_dirs=[numpy.get_include()],
-        extra_compile_args=["-O3"],
+        "classtrees.tree_module",
+        sources=["src/classtrees/tree_module.c", "src/classtrees/tree.c"],
+        include_dirs=[numpy.get_include(), "src/classtrees"],
+        extra_compile_args=["-O3", "-DNDEBUG"]
     )
 ]
 
