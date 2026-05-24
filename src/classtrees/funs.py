@@ -16,5 +16,5 @@ class ClassTree:
     def predict(self, X):
         return self._tree.predict(X)
 
-    # def predict_proba(self, X):
-    #     return self._tree.predict_proba(X)  # placeholder
+    def predict_proba(self, X):
+        return self._tree.predict_proba(X)

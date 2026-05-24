@@ -30,4 +30,5 @@ classifiers = [
 test = [
     "pytest",
     "numpy",
+    "scikit-learn",
 ]

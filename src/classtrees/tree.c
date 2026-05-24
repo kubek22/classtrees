@@ -540,8 +540,9 @@ void free_tree(Node* root) {
     free(root);
 }
 
+// TODO change ASSESRT(root) into python error optionally
 // TODO it works only for C contiguous arrays - check if it is needed
-static size_t predict_one(Node* root, const double* x) {
+static int64_t predict_one(Node* root, const double* x) {
     // predicts a class for only one observation
     
     // sanity check
@@ -556,6 +557,9 @@ static size_t predict_one(Node* root, const double* x) {
         else
             root = root->right;
     }
+    ASSERT(root->probs.data);
+    ASSERT(root->probs.size > 0);
+    
     size_t c = root->probs.size;
     double* probs_array = root->probs.data;
     // select argmax
@@ -565,17 +569,49 @@ static size_t predict_one(Node* root, const double* x) {
         if (probs_array[ret] < probs_array[i])
             ret = i;
     }
-    return ret;
+    return (int64_t)ret;
 }
 
-// TODO should be accessible from other files
-size_t* tree_predict(Node* root, const double* X, size_t n, size_t p) {
+int64_t* tree_predict(Node* root, const double* X, size_t n, size_t p) {
     // initialize y_pred
-    size_t* ret = (size_t*)malloc(n * sizeof(size_t));
+    int64_t* ret = (int64_t*)malloc(n * sizeof(int64_t));
     // iterate over samples
     for (size_t i = 0; i < n; i++) {
         // TODO check if it makes sense
         ret[i] = predict_one(root, &X[i * p]);
+    }
+    return ret;
+}
+
+static double* predict_proba_one(Node* root, const double* x) {
+    // predicts a class for only one observation
+    
+    // sanity check
+    ASSERT(root);
+    ASSERT(x);
+    
+    // going down to a leaf
+    while (root->left || root->right) {
+        // TODO it may be dangerous when we try to access non-existing feature -> should be checked at the beginning
+        if (x[root->feature] < root->threshold)
+            root = root->left;
+        else
+            root = root->right;
+    }
+    return root->probs.data;
+}
+
+double* tree_predict_proba(Node* root, const double* X, size_t n, size_t p) {
+    size_t c = root->probs.size;
+    // initialize y_pred
+    double* ret = (double*)malloc(n * c * sizeof(double));
+    // iterate over samples
+    for (size_t i = 0; i < n; i++) {
+        // TODO check if it makes sense
+        double* probs = predict_proba_one(root, &X[i * p]);
+        for (size_t j = 0; j < c; j++) {
+            ret[i * c + j] = probs[j];
+        }
     }
     return ret;
 }

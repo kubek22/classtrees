@@ -3,6 +3,8 @@
 #define TREE_H
 
 #include <stddef.h>
+#include <stdint.h>
+
 
 // defining types
 typedef struct _idx_array {
@@ -32,7 +34,8 @@ double gini_from_counts(idx_array counts, size_t n);
 double entropy_from_counts(idx_array counts, size_t n);
 size_t get_classes(size_t* y, size_t n);
 void tree_fit(Node** root, const double* X, const size_t* y, size_t n, size_t p, size_t c, impurity_func_t impurity_func, size_t max_height, size_t min_samples_split);
-size_t* tree_predict(Node* root, const double* X, size_t n, size_t p);
+int64_t * tree_predict(Node* root, const double* X, size_t n, size_t p);
+double* tree_predict_proba(Node* root, const double* X, size_t n, size_t p);
 
 
 #endif

@@ -2,7 +2,6 @@ import numpy as np
 import pytest
 from classtrees import ClassTree
 
-
 # -------------------------
 # Helpers
 # -------------------------
@@ -13,7 +12,7 @@ def make_simple_dataset(n=20):
     y = 1 if sum(x) > threshold else 0
     """
     X = np.random.randn(n, 3).astype(np.float64)
-    y = (X.sum(axis=1) > 0).astype(np.uint64)
+    y = (X.sum(axis=1) > 0).astype(np.int64)
     return X, y
 
 
@@ -53,7 +52,8 @@ def test_fit_runs_without_crash():
 
 def test_fit_accepts_numpy_contiguous():
     X = np.ascontiguousarray(np.random.randn(10, 4))
-    y = np.ascontiguousarray(np.random.randint(0, 2, size=10)).astype(np.uint64)
+    y = np.ascontiguousarray(np.random.randint(0, 2, size=10))
+    # .astype(np.uint64)
 
     tree = ClassTree()
     tree.fit(X, y)
