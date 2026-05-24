@@ -3,7 +3,9 @@ from classtrees.tree_module import PyTree
 # python class that wraps the PyTree class and provides a scikit-learn-like interface
 
 class ClassTree:
-    def __init__(self, impurity="gini", max_height=10, min_samples_split=2):
+    def __init__(self, impurity="gini", max_height=None, min_samples_split=2,
+                 min_samples_leaf=1, max_features=None, random_state=None, n_jobs=1):
+        
         self._tree = PyTree(
             impurity=impurity,
             max_height=max_height,

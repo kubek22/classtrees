@@ -11,7 +11,7 @@ from classtrees import ClassTree
 # -----------------------------
 # CONFIG
 # -----------------------------
-N_SAMPLES = 5000
+N_SAMPLES = 50000
 N_FEATURES = 50
 N_CLASSES = 4
 N_RUNS = 10

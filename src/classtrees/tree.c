@@ -28,6 +28,36 @@ static void print_double_array(double_array x) {
     printf("]\n");
 }
 
+// TODO used only for tests
+static size_t assert_arrays_equal(double_array x, double_array y) {
+    // for testing
+    ASSERT(x.data);
+    ASSERT(y.data);
+    if (x.size != y.size) return 1;
+    size_t error = 0;
+    for (size_t i = 0; i < x.size; i++) {
+        if (fabs(x.data[i] - y.data[i]) > 1e-12) {
+            print_double_array(x);
+            print_double_array(y);
+            printf("\n");
+            error = 1;
+        }
+    }
+    return error;
+}
+
+Node* init_node(size_t h, double_array* probs, double impurity) {
+    Node* node = (Node*)malloc(sizeof(Node));
+    node->h = h;
+    node->probs = *probs;
+    node->impurity = impurity;
+    node->feature = 0;
+    node->threshold = 0.0;
+    node->left = NULL;
+    node->right = NULL;
+    return node;
+}
+
 static idx_array init_indexes(size_t size) {
     idx_array ret;
     ret.size = size;
@@ -235,8 +265,7 @@ static void free_X(double** X, size_t n) {
     free(X);
 }
 
-// TODO modified - check references to it
-static size_t partition(const double* X, size_t* indexes, size_t start_idx, size_t end_idx, size_t feature, double t, size_t p) {
+static size_t partition(double* feat, size_t* indexes, size_t start_idx, size_t end_idx, double t) {
     // p is the number of features
     // modifies indexes within range [start_idx, end_idx) so that values X[:][feature] < t in the analyzed range will be located before elements >= t
     // returns the first index of an element >= t
@@ -245,10 +274,9 @@ static size_t partition(const double* X, size_t* indexes, size_t start_idx, size
     // it does not guarantee shrinkage of the problem so cannot be applied for quicksort
     // it t is greater than all values, end_idx is returned
 
-    ASSERT(X);
+    ASSERT(feat);
     ASSERT(indexes);
     ASSERT(end_idx >= start_idx);
-    ASSERT(feature < p);
 
     // copying the initial indexes
     size_t i = start_idx;
@@ -256,16 +284,19 @@ static size_t partition(const double* X, size_t* indexes, size_t start_idx, size
 
     while (i < j) {
         // searching for missplaced elements
-        while (i < j && X[indexes[i] * p + feature] < t)
+        while (i < j && feat[i - start_idx] < t)
             i++;
         // dangerous - it may underflow
-        while (i < j && X[indexes[j - 1] * p + feature] >= t)
+        while (i < j && feat[j - 1 - start_idx] >= t)
             j--;
         // swapping the elements
         if (i < j) {
             size_t tmp = indexes[i];
             indexes[i] = indexes[j - 1];
             indexes[j - 1] = tmp;
+            double tmp_val = feat[i - start_idx];
+            feat[i - start_idx] = feat[j - 1 - start_idx];
+            feat[j - 1 - start_idx] = tmp_val;
             // moving forward
             ++i;
             --j;
@@ -274,67 +305,113 @@ static size_t partition(const double* X, size_t* indexes, size_t start_idx, size
     return i;
 }
 
-// TODO modified - check references to it
-static size_t partition_quicksort(const double* X, size_t* indexes, size_t start_idx, size_t end_idx, size_t feature, size_t p_index, size_t p) {
+// static size_t partition(const double* X, size_t* indexes, size_t start_idx, size_t end_idx, size_t feature, double t, size_t p) {
+//     // p is the number of features
+//     // modifies indexes within range [start_idx, end_idx) so that values X[:][feature] < t in the analyzed range will be located before elements >= t
+//     // returns the first index of an element >= t
+//     // t threshold does not need to be present in the data
+//     // the algorithm guarantees only to place elements <t first and >=t later
+//     // it does not guarantee shrinkage of the problem so cannot be applied for quicksort
+//     // it t is greater than all values, end_idx is returned
+
+//     ASSERT(X);
+//     ASSERT(indexes);
+//     ASSERT(end_idx >= start_idx);
+//     ASSERT(feature < p);
+
+//     // copying the initial indexes
+//     size_t i = start_idx;
+//     size_t j = end_idx;
+
+//     while (i < j) {
+//         // searching for missplaced elements
+//         while (i < j && X[indexes[i] * p + feature] < t)
+//             i++;
+//         // dangerous - it may underflow
+//         while (i < j && X[indexes[j - 1] * p + feature] >= t)
+//             j--;
+//         // swapping the elements
+//         if (i < j) {
+//             size_t tmp = indexes[i];
+//             indexes[i] = indexes[j - 1];
+//             indexes[j - 1] = tmp;
+//             // moving forward
+//             ++i;
+//             --j;
+//         }
+//     }
+//     return i;
+// }
+
+static size_t partition_quicksort(double* feat, size_t* indexes, size_t start_idx, size_t end_idx, size_t p_index) {
     // Require non-empty range
     // Require start_idx <= p_index < end_idx
-    ASSERT(X);
+    ASSERT(feat);
     ASSERT(indexes);
     ASSERT(end_idx > start_idx);
     ASSERT(p_index >= start_idx && p_index < end_idx);
-    ASSERT(feature < p);
 
-    double pivot = X[indexes[p_index] * p + feature];
+    double pivot = feat[p_index - start_idx];
 
     // Move pivot to the end
     size_t pivot_idx = indexes[p_index];
     indexes[p_index] = indexes[end_idx - 1];
     indexes[end_idx - 1] = pivot_idx;
 
+    feat[p_index - start_idx] = feat[end_idx - 1 - start_idx];
+    feat[end_idx - 1 - start_idx] = pivot;
+
     // Partition excluding pivot
-    size_t mid = partition(X, indexes, start_idx, end_idx - 1, feature, pivot, p);
+    size_t mid = partition(feat, indexes, start_idx, end_idx - 1, pivot);
 
     // Move pivot into final place
     indexes[end_idx - 1] = indexes[mid];
     indexes[mid] = pivot_idx;
 
+    feat[end_idx - 1- start_idx] = feat[mid - start_idx];
+    feat[mid - start_idx] = pivot;
+
     return mid;
 }
 
-// TODO not used now
-static double pivot(double * const * X, size_t feature, size_t* indexes, size_t start_idx, size_t end_idx) {
-    // selects 3 elements and chooses a median from them
+// static size_t partition_quicksort(const double* X, size_t* indexes, size_t start_idx, size_t end_idx, size_t feature, size_t p_index, size_t p) {
+//     // Require non-empty range
+//     // Require start_idx <= p_index < end_idx
+//     ASSERT(X);
+//     ASSERT(indexes);
+//     ASSERT(end_idx > start_idx);
+//     ASSERT(p_index >= start_idx && p_index < end_idx);
+//     ASSERT(feature < p);
 
-    ASSERT(X);
-    ASSERT(indexes);
-    ASSERT(end_idx > start_idx);
+//     double pivot = X[indexes[p_index] * p + feature];
 
-    size_t mid = start_idx + (end_idx - start_idx) / 2;
+//     // Move pivot to the end
+//     size_t pivot_idx = indexes[p_index];
+//     indexes[p_index] = indexes[end_idx - 1];
+//     indexes[end_idx - 1] = pivot_idx;
 
-    double a = X[indexes[start_idx]][feature];
-    double b = X[indexes[mid]][feature];
-    double c = X[indexes[end_idx - 1]][feature];
-    
-    if ((a <= b && b <= c) || (c <= b && b <= a))
-        return b;
-    if ((b <= a && a <= c) || (c <= a && a <= b))
-        return a;
-    return c;
-}
+//     // Partition excluding pivot
+//     size_t mid = partition(X, indexes, start_idx, end_idx - 1, feature, pivot, p);
 
-// TODO new
-static size_t pivot_idx(const double* X, size_t feature, size_t* indexes, size_t start_idx, size_t end_idx, size_t p) {
-    ASSERT(X);
+//     // Move pivot into final place
+//     indexes[end_idx - 1] = indexes[mid];
+//     indexes[mid] = pivot_idx;
+
+//     return mid;
+// }
+
+
+static size_t pivot_idx(const double* feat, size_t* indexes, size_t start_idx, size_t end_idx) {
+    ASSERT(feat);
     ASSERT(indexes);
     ASSERT(start_idx < end_idx);
-    ASSERT(feature < p);
 
     // selects 3 elements and chooses a median from them
     size_t mid = start_idx + (end_idx - start_idx) / 2;
 
-    double a = X[indexes[start_idx] * p + feature];
-    double b = X[indexes[mid] * p + feature];
-    double c = X[indexes[end_idx - 1] * p + feature];
+    double a = feat[start_idx - start_idx];
+    double b = feat[mid - start_idx];
+    double c = feat[end_idx - 1 - start_idx];
 
     if ((a <= b && b <= c) || (c <= b && b <= a))
         return mid;
@@ -343,45 +420,84 @@ static size_t pivot_idx(const double* X, size_t feature, size_t* indexes, size_t
     return end_idx - 1;
 }
 
-static void insertion_argsort(const double* X, size_t feature, size_t* indexes, size_t start_idx, size_t end_idx, size_t p) {
-    ASSERT(X);
+// static size_t pivot_idx(const double* X, size_t feature, size_t* indexes, size_t start_idx, size_t end_idx, size_t p) {
+//     ASSERT(X);
+//     ASSERT(indexes);
+//     ASSERT(start_idx < end_idx);
+//     ASSERT(feature < p);
+
+//     // selects 3 elements and chooses a median from them
+//     size_t mid = start_idx + (end_idx - start_idx) / 2;
+
+//     double a = X[indexes[start_idx] * p + feature];
+//     double b = X[indexes[mid] * p + feature];
+//     double c = X[indexes[end_idx - 1] * p + feature];
+
+//     if ((a <= b && b <= c) || (c <= b && b <= a))
+//         return mid;
+//     if ((b <= a && a <= c) || (c <= a && a <= b))
+//         return start_idx;
+//     return end_idx - 1;
+// }
+
+static void insertion_argsort(double* feat, size_t* indexes, size_t start_idx, size_t end_idx) {
+    ASSERT(feat);
     ASSERT(indexes);
-    ASSERT(feature < p);
 
     for (size_t i = start_idx + 1; i < end_idx; i++) {
         size_t idx = indexes[i];
-        double t = X[idx * p + feature];
+        double t = feat[i - start_idx];
         size_t j = i;
-        while (j > start_idx && X[indexes[j - 1] * p + feature] > t) {
+
+        while (j > start_idx && feat[j - 1 - start_idx] > t) {
             indexes[j] = indexes[j - 1];
+            feat[j - start_idx] = feat[j - 1 - start_idx];
             j--;
         }
+
         indexes[j] = idx;
+        feat[j - start_idx] = t;
     }
 }
 
-static void argsort(const double* X, size_t feature, size_t* indexes, size_t start_idx, size_t end_idx, size_t p) {
+// static void insertion_argsort(const double* X, size_t feature, size_t* indexes, size_t start_idx, size_t end_idx, size_t p) {
+//     ASSERT(X);
+//     ASSERT(indexes);
+//     ASSERT(feature < p);
+
+//     for (size_t i = start_idx + 1; i < end_idx; i++) {
+//         size_t idx = indexes[i];
+//         double t = X[idx * p + feature];
+//         size_t j = i;
+//         while (j > start_idx && X[indexes[j - 1] * p + feature] > t) {
+//             indexes[j] = indexes[j - 1];
+//             j--;
+//         }
+//         indexes[j] = idx;
+//     }
+// }
+
+static void argsort(double* feat, size_t* indexes, size_t start_idx, size_t end_idx) {
     // gets X matrix as input, considers only given features and applies argsort on indexes array within given range
     // modifies indexes inplace
     // quicksort + insertion sort
 
-    ASSERT(X);
+    ASSERT(feat);
     ASSERT(indexes);
-    ASSERT(feature < p);
 
     // sort until there is only one element
     size_t n = end_idx - start_idx;
     while (n > 1) {
         // run insertion sort for small arrays
-        if (n < QUICKSORT_NMIN) return insertion_argsort(X, feature, indexes, start_idx, end_idx, p);
-        size_t p_index = pivot_idx(X, feature, indexes, start_idx, end_idx, p);
-        size_t mid_idx = partition_quicksort(X, indexes, start_idx, end_idx, feature, p_index, p);
+        if (n < QUICKSORT_NMIN) return insertion_argsort(feat, indexes, start_idx, end_idx);
+        size_t p_index = pivot_idx(feat, indexes, start_idx, end_idx);
+        size_t mid_idx = partition_quicksort(feat, indexes, start_idx, end_idx, p_index);
         if (mid_idx - start_idx < n - mid_idx - 1) {
-            argsort(X, feature, indexes, start_idx, mid_idx, p);
+            argsort(feat, indexes, start_idx, mid_idx);
             start_idx = mid_idx + 1;
         }
         else {
-            argsort(X, feature, indexes, mid_idx + 1, end_idx, p);
+            argsort(feat, indexes, mid_idx + 1, end_idx);
             end_idx = mid_idx;
         }
         // update size
@@ -389,36 +505,34 @@ static void argsort(const double* X, size_t feature, size_t* indexes, size_t sta
     }
 }
 
-// TODO used only for tests
-static size_t assert_arrays_equal(double_array x, double_array y) {
-    // for testing
-    ASSERT(x.data);
-    ASSERT(y.data);
-    if (x.size != y.size) return 1;
-    size_t error = 0;
-    for (size_t i = 0; i < x.size; i++) {
-        if (fabs(x.data[i] - y.data[i]) > 1e-12) {
-            print_double_array(x);
-            print_double_array(y);
-            printf("\n");
-            error = 1;
-        }
-    }
-    return error;
-}
+// static void argsort(const double* X, size_t feature, size_t* indexes, size_t start_idx, size_t end_idx, size_t p) {
+//     // gets X matrix as input, considers only given features and applies argsort on indexes array within given range
+//     // modifies indexes inplace
+//     // quicksort + insertion sort
 
-// TODO maybe should be accessible from other files
-Node* init_node(size_t h, double_array* probs, double impurity) {
-    Node* node = (Node*)malloc(sizeof(Node));
-    node->h = h;
-    node->probs = *probs;
-    node->impurity = impurity;
-    node->feature = 0;
-    node->threshold = 0.0;
-    node->left = NULL;
-    node->right = NULL;
-    return node;
-}
+//     ASSERT(X);
+//     ASSERT(indexes);
+//     ASSERT(feature < p);
+
+//     // sort until there is only one element
+//     size_t n = end_idx - start_idx;
+//     while (n > 1) {
+//         // run insertion sort for small arrays
+//         if (n < QUICKSORT_NMIN) return insertion_argsort(X, feature, indexes, start_idx, end_idx, p);
+//         size_t p_index = pivot_idx(X, feature, indexes, start_idx, end_idx, p);
+//         size_t mid_idx = partition_quicksort(X, indexes, start_idx, end_idx, feature, p_index, p);
+//         if (mid_idx - start_idx < n - mid_idx - 1) {
+//             argsort(X, feature, indexes, start_idx, mid_idx, p);
+//             start_idx = mid_idx + 1;
+//         }
+//         else {
+//             argsort(X, feature, indexes, mid_idx + 1, end_idx, p);
+//             end_idx = mid_idx;
+//         }
+//         // update size
+//         n = end_idx - start_idx;
+//     }
+// }
 
 static void split(Node* node, const double* X, const size_t* y, size_t p, size_t c, size_t* indexes, size_t start_idx, size_t end_idx, double (*impurity_func)(idx_array, size_t), size_t max_height, size_t min_samples_split) {
     // p is the number of features
@@ -449,10 +563,16 @@ static void split(Node* node, const double* X, const size_t* y, size_t p, size_t
     double best_score = INFINITY;
     size_t n = end_idx - start_idx; // number of observations in a node
 
+    // caching of feature column - it will be used for partitioning and sorting
+    double* feat = malloc(n * sizeof(double));
+
     // for each feature
     for (size_t feature = 0; feature < p; feature++) {
+        for (size_t i = 0; i < n; i++)
+            feat[i] = X[indexes[start_idx + i] * p + feature];
+
         // sort values for the feature
-        argsort(X, feature, indexes, start_idx, end_idx, p);
+        argsort(feat, indexes, start_idx, end_idx);
         
         // initially all elements are in the right subtree
         // possibly allocate this only once and just fill with zeros
@@ -469,11 +589,11 @@ static void split(Node* node, const double* X, const size_t* y, size_t p, size_t
             right_counts.data[class]--;
 
             // skip if we have identical values
-            if (fabs(X[indexes[start_idx + i + 1] * p + feature] - X[indexes[start_idx + i] * p + feature]) < 1e-12)
+            if (fabs(feat[i + 1] - feat[i]) < 1e-12)
                 continue;
 
             // compute the new threshold
-            double threshold = (X[indexes[start_idx + i] * p + feature] + X[indexes[start_idx + i + 1] * p + feature]) * 0.5;
+            double threshold = (feat[i] + feat[i + 1]) * 0.5;
 
             // update with counts
             double impurity_left = impurity_func(left_counts, i+1);
@@ -501,9 +621,14 @@ static void split(Node* node, const double* X, const size_t* y, size_t p, size_t
         free(right_counts.data);
     }
     // we already chose the best feature and threshold
+    // freeing cached feature column
+    
 
     // recomputing probs - partition will be faster than sorting
-    size_t mid_idx = partition(X, indexes, start_idx, end_idx, node->feature, node->threshold, p);
+    for (size_t i = 0; i < n; i++)
+        feat[i] = X[indexes[start_idx + i] * p + node->feature];
+    size_t mid_idx = partition(feat, indexes, start_idx, end_idx, node->threshold);
+    free(feat);
 
     // recompute probs
     // helper counts - for imputity
@@ -528,6 +653,115 @@ static void split(Node* node, const double* X, const size_t* y, size_t p, size_t
     split(node->left, X, y, p, c, indexes, start_idx, mid_idx, impurity_func, max_height, min_samples_split);
     split(node->right, X, y, p, c, indexes, mid_idx, end_idx, impurity_func, max_height, min_samples_split);
 }
+
+// static void split(Node* node, const double* X, const size_t* y, size_t p, size_t c, size_t* indexes, size_t start_idx, size_t end_idx, double (*impurity_func)(idx_array, size_t), size_t max_height, size_t min_samples_split) {
+//     // p is the number of features
+//     // c is the number of classes
+//     // impurity_func is gini or entropy
+//     // for given data X and for considered observation within range [start_idx, end_idx), we want to make an optimal split
+
+//     ASSERT(node);
+//     ASSERT(X);
+//     ASSERT(y);
+//     ASSERT(start_idx < end_idx);
+
+//     // we need at least two samples to make a split
+//     if (end_idx - start_idx < 2)
+//         return;
+//     // for impurity 0, we dont split anymore - parametrize later
+//     if (node->impurity < 1e-12)
+//         return;
+//     // max height
+//     if (node->h >= max_height)
+//         return;
+//     // minimal number of samples to split a leaf
+//     if (end_idx - start_idx < min_samples_split)
+//         return;
+
+//     // store initial best impurity in the node
+//     // we want to minimize impurities
+//     double best_score = INFINITY;
+//     size_t n = end_idx - start_idx; // number of observations in a node
+
+//     // for each feature
+//     for (size_t feature = 0; feature < p; feature++) {
+//         // sort values for the feature
+//         argsort(X, feature, indexes, start_idx, end_idx, p);
+        
+//         // initially all elements are in the right subtree
+//         // possibly allocate this only once and just fill with zeros
+//         idx_array left_counts = zeros_idx_array(c);
+//         idx_array right_counts = get_counts(c, y, indexes, start_idx, end_idx);
+
+//         // iterate over middle points as thresholds
+//         for (size_t i = 0; i < n - 1; i++) {
+//             // TODO: check what happens if there is only one unique value -> then impurity is 0 -> we already check it at the beginning
+
+//             // move 1 element to the left subtree
+//             size_t class = y[indexes[start_idx + i]];
+//             left_counts.data[class]++;
+//             right_counts.data[class]--;
+
+//             // skip if we have identical values
+//             if (fabs(X[indexes[start_idx + i + 1] * p + feature] - X[indexes[start_idx + i] * p + feature]) < 1e-12)
+//                 continue;
+
+//             // compute the new threshold
+//             double threshold = (X[indexes[start_idx + i] * p + feature] + X[indexes[start_idx + i + 1] * p + feature]) * 0.5;
+
+//             // update with counts
+//             double impurity_left = impurity_func(left_counts, i+1);
+//             double impurity_right = impurity_func(right_counts, n-i-1);
+
+//             // counting prior probability of selecting the right and left node
+//             // there are (i+1) observations in the left subtree and end_idx-start_idx-i-1 in the right one
+//             double p_left = (double)(i + 1) / n;
+//             double p_right = 1.0 - p_left;
+
+//             // overwrite the best results if needed
+//             double score = p_left * impurity_left + p_right * impurity_right;
+
+//             if (best_score > score) {
+//                 best_score = score;
+//                 // set the best feature and threshold
+//                 node->feature = feature;
+//                 node->threshold = threshold;
+//             }
+//         }
+//         // we already chose the best threshold for given feature
+
+//         // freeing counts
+//         free(left_counts.data);
+//         free(right_counts.data);
+//     }
+//     // we already chose the best feature and threshold
+
+//     // recomputing probs - partition will be faster than sorting
+//     size_t mid_idx = partition(X, indexes, start_idx, end_idx, node->feature, node->threshold, p);
+
+//     // recompute probs
+//     // helper counts - for imputity
+//     idx_array counts_left = get_counts(c, y, indexes, start_idx, mid_idx);
+//     idx_array counts_right = get_counts(c, y, indexes, mid_idx, end_idx);
+
+//     double impurity_left = impurity_func(counts_left, mid_idx - start_idx);
+//     double impurity_right = impurity_func(counts_right, end_idx - mid_idx);
+
+//     double_array probs_left = get_probs_from_counts(counts_left, mid_idx - start_idx);
+//     double_array probs_right = get_probs_from_counts(counts_right, end_idx - mid_idx);
+
+//     free(counts_left.data);
+//     free(counts_right.data);
+
+//     // creating subtrees
+//     node->left = init_node(node->h+1, &probs_left, impurity_left);
+//     node->right = init_node(node->h+1, &probs_right, impurity_right);
+
+//     // recurentially build the tree
+//     // maybe start from the subtree with smaller number of observations
+//     split(node->left, X, y, p, c, indexes, start_idx, mid_idx, impurity_func, max_height, min_samples_split);
+//     split(node->right, X, y, p, c, indexes, mid_idx, end_idx, impurity_func, max_height, min_samples_split);
+// }
 
 // TODO check if it will be needed
 void free_tree(Node* root) {
@@ -645,563 +879,563 @@ static double accuracy(const size_t* y_true, const size_t* y_pred, size_t n) {
 // TODO move to separate file later
 
 
-static void test_init_indexes(size_t n) {
-    idx_array arr = init_indexes(n);
+// static void test_init_indexes(size_t n) {
+//     idx_array arr = init_indexes(n);
 
-    ASSERT(arr.size == n);
+//     ASSERT(arr.size == n);
 
-    for (size_t i = 0; i < n; i++) {
-        ASSERT(arr.data[i] == i);
-    }
+//     for (size_t i = 0; i < n; i++) {
+//         ASSERT(arr.data[i] == i);
+//     }
 
-    free(arr.data);
-}
+//     free(arr.data);
+// }
 
-static void test_get_classes_basic() {
-    size_t y[] = {0, 1, 2, 1, 0};
+// static void test_get_classes_basic() {
+//     size_t y[] = {0, 1, 2, 1, 0};
 
-    ASSERT(get_classes(y, 5) == 3);
-}
+//     ASSERT(get_classes(y, 5) == 3);
+// }
 
-static void test_zeros_array(size_t n) {
-    double_array arr = zeros_array(n);
+// static void test_zeros_array(size_t n) {
+//     double_array arr = zeros_array(n);
 
-    ASSERT(arr.size == n);
+//     ASSERT(arr.size == n);
 
-    for (size_t i = 0; i < n; i++) {
-        ASSERT(arr.data[i] == 0.0);
-    }
+//     for (size_t i = 0; i < n; i++) {
+//         ASSERT(arr.data[i] == 0.0);
+//     }
 
-    free(arr.data);
-}
+//     free(arr.data);
+// }
 
-static void test_get_classes() {
-    // single class
-    size_t y1[] = {0, 0, 0, 0};
-    ASSERT(get_classes(y1, 4) == 1);
+// static void test_get_classes() {
+//     // single class
+//     size_t y1[] = {0, 0, 0, 0};
+//     ASSERT(get_classes(y1, 4) == 1);
 
-    // unordered classes
-    size_t y2[] = {2, 0, 1, 2};
-    ASSERT(get_classes(y2, 4) == 3);
+//     // unordered classes
+//     size_t y2[] = {2, 0, 1, 2};
+//     ASSERT(get_classes(y2, 4) == 3);
 
-    // wrong labeling - jump
-    size_t y3[] = {0, 5, 2, 1};
-    ASSERT(get_classes(y3, 4) == 6);
-}
+//     // wrong labeling - jump
+//     size_t y3[] = {0, 5, 2, 1};
+//     ASSERT(get_classes(y3, 4) == 6);
+// }
 
-static void test_get_probs_basic() {
-    size_t y[] = {0, 1, 1, 2};
-    size_t indexes[] = {0, 1, 2, 3};
+// static void test_get_probs_basic() {
+//     size_t y[] = {0, 1, 1, 2};
+//     size_t indexes[] = {0, 1, 2, 3};
 
-    double_array probs =
-        get_probs(3, y, indexes, 0, 4);
+//     double_array probs =
+//         get_probs(3, y, indexes, 0, 4);
 
-    ASSERT(probs.size == 3);
+//     ASSERT(probs.size == 3);
 
-    ASSERT_DOUBLE_EQ(probs.data[0], 0.25, 1e-12);
-    ASSERT_DOUBLE_EQ(probs.data[1], 0.50, 1e-12);
-    ASSERT_DOUBLE_EQ(probs.data[2], 0.25, 1e-12);
+//     ASSERT_DOUBLE_EQ(probs.data[0], 0.25, 1e-12);
+//     ASSERT_DOUBLE_EQ(probs.data[1], 0.50, 1e-12);
+//     ASSERT_DOUBLE_EQ(probs.data[2], 0.25, 1e-12);
 
-    free(probs.data);
-}
+//     free(probs.data);
+// }
 
-static void test_get_probs_subset_indexes() {
-    size_t y[] = {0, 1, 2, 1, 0};
+// static void test_get_probs_subset_indexes() {
+//     size_t y[] = {0, 1, 2, 1, 0};
 
-    size_t indexes[] = {4, 3, 1};
+//     size_t indexes[] = {4, 3, 1};
 
-    /*
-        selected labels:
-        y[4] = 0
-        y[3] = 1
-        y[1] = 1
+//     /*
+//         selected labels:
+//         y[4] = 0
+//         y[3] = 1
+//         y[1] = 1
 
-        counts:
-        class 0 -> 1
-        class 1 -> 2
-        class 2 -> 0
-    */
+//         counts:
+//         class 0 -> 1
+//         class 1 -> 2
+//         class 2 -> 0
+//     */
 
-    double_array probs =
-        get_probs(3, y, indexes, 0, 3);
+//     double_array probs =
+//         get_probs(3, y, indexes, 0, 3);
 
-    ASSERT_DOUBLE_EQ(probs.data[0], 1.0/3.0, 1e-12);
-    ASSERT_DOUBLE_EQ(probs.data[1], 2.0/3.0, 1e-12);
-    ASSERT_DOUBLE_EQ(probs.data[2], 0.0,     1e-12);
+//     ASSERT_DOUBLE_EQ(probs.data[0], 1.0/3.0, 1e-12);
+//     ASSERT_DOUBLE_EQ(probs.data[1], 2.0/3.0, 1e-12);
+//     ASSERT_DOUBLE_EQ(probs.data[2], 0.0,     1e-12);
 
-    free(probs.data);
-}
+//     free(probs.data);
+// }
 
-static void test_get_probs_subrange() {
-    size_t y[] = {0, 1, 2, 1, 0};
+// static void test_get_probs_subrange() {
+//     size_t y[] = {0, 1, 2, 1, 0};
 
-    size_t indexes[] = {0, 1, 2, 3, 4};
+//     size_t indexes[] = {0, 1, 2, 3, 4};
 
-    /*
-        using indexes[1:4]
+//     /*
+//         using indexes[1:4]
 
-        labels:
-        1,2,1
-    */
+//         labels:
+//         1,2,1
+//     */
 
-    double_array probs =
-        get_probs(3, y, indexes, 1, 4);
+//     double_array probs =
+//         get_probs(3, y, indexes, 1, 4);
 
-    ASSERT_DOUBLE_EQ(probs.data[0], 0.0,     1e-12);
-    ASSERT_DOUBLE_EQ(probs.data[1], 2.0/3.0, 1e-12);
-    ASSERT_DOUBLE_EQ(probs.data[2], 1.0/3.0, 1e-12);
+//     ASSERT_DOUBLE_EQ(probs.data[0], 0.0,     1e-12);
+//     ASSERT_DOUBLE_EQ(probs.data[1], 2.0/3.0, 1e-12);
+//     ASSERT_DOUBLE_EQ(probs.data[2], 1.0/3.0, 1e-12);
 
-    free(probs.data);
-}
+//     free(probs.data);
+// }
 
-static void test_get_probs_sum_to_one() {
-    size_t y[] = {0, 1, 1, 2};
-    size_t indexes[] = {0, 1, 2, 3};
+// static void test_get_probs_sum_to_one() {
+//     size_t y[] = {0, 1, 1, 2};
+//     size_t indexes[] = {0, 1, 2, 3};
 
-    double_array probs =
-        get_probs(3, y, indexes, 0, 4);
-
-    double sum = 0.0;
-
-    for (size_t i = 0; i < probs.size; ++i)
-        sum += probs.data[i];
-
-    ASSERT_DOUBLE_EQ(sum, 1.0, 1e-12);
-
-    free(probs.data);
-}
-
-static void test_gini_pure() {
-    double data[] = {1.0, 0.0, 0.0};
-
-    double_array probs = {
-        .size = 3,
-        .data = data
-    };
-
-    ASSERT_DOUBLE_EQ(gini(probs), 0.0, 1e-12);
-}
+//     double_array probs =
+//         get_probs(3, y, indexes, 0, 4);
+
+//     double sum = 0.0;
+
+//     for (size_t i = 0; i < probs.size; ++i)
+//         sum += probs.data[i];
+
+//     ASSERT_DOUBLE_EQ(sum, 1.0, 1e-12);
+
+//     free(probs.data);
+// }
+
+// static void test_gini_pure() {
+//     double data[] = {1.0, 0.0, 0.0};
+
+//     double_array probs = {
+//         .size = 3,
+//         .data = data
+//     };
+
+//     ASSERT_DOUBLE_EQ(gini(probs), 0.0, 1e-12);
+// }
 
-static void test_gini_binary_balanced() {
-    double data[] = {0.5, 0.5};
+// static void test_gini_binary_balanced() {
+//     double data[] = {0.5, 0.5};
 
-    double_array probs = {
-        .size = 2,
-        .data = data
-    };
+//     double_array probs = {
+//         .size = 2,
+//         .data = data
+//     };
 
-    /*
-        1 - (0.25 + 0.25) = 0.5
-    */
+//     /*
+//         1 - (0.25 + 0.25) = 0.5
+//     */
 
-    ASSERT_DOUBLE_EQ(gini(probs), 0.5, 1e-12);
-}
+//     ASSERT_DOUBLE_EQ(gini(probs), 0.5, 1e-12);
+// }
 
-static void test_gini_uniform_three_classes() {
-    double data[] = {
-        1.0/3.0,
-        1.0/3.0,
-        1.0/3.0
-    };
+// static void test_gini_uniform_three_classes() {
+//     double data[] = {
+//         1.0/3.0,
+//         1.0/3.0,
+//         1.0/3.0
+//     };
 
-    double_array probs = {
-        .size = 3,
-        .data = data
-    };
+//     double_array probs = {
+//         .size = 3,
+//         .data = data
+//     };
 
-    /*
-        1 - 3*(1/9) = 2/3
-    */
+//     /*
+//         1 - 3*(1/9) = 2/3
+//     */
 
-    ASSERT_DOUBLE_EQ(gini(probs), 2.0/3.0, 1e-12);
-}
+//     ASSERT_DOUBLE_EQ(gini(probs), 2.0/3.0, 1e-12);
+// }
 
-static void test_entropy_pure() {
-    double data[] = {1.0, 0.0};
+// static void test_entropy_pure() {
+//     double data[] = {1.0, 0.0};
 
-    double_array probs = {
-        .size = 2,
-        .data = data
-    };
+//     double_array probs = {
+//         .size = 2,
+//         .data = data
+//     };
 
-    ASSERT_DOUBLE_EQ(entropy(probs), 0.0, 1e-12);
-}
+//     ASSERT_DOUBLE_EQ(entropy(probs), 0.0, 1e-12);
+// }
 
-static void test_entropy_binary_balanced() {
-    double data[] = {0.5, 0.5};
+// static void test_entropy_binary_balanced() {
+//     double data[] = {0.5, 0.5};
 
-    double_array probs = {
-        .size = 2,
-        .data = data
-    };
+//     double_array probs = {
+//         .size = 2,
+//         .data = data
+//     };
 
-    ASSERT_DOUBLE_EQ(
-        entropy(probs),
-        log(2.0),
-        1e-12
-    );
-}
+//     ASSERT_DOUBLE_EQ(
+//         entropy(probs),
+//         log(2.0),
+//         1e-12
+//     );
+// }
 
-static void test_entropy_uniform_three_classes() {
-    double data[] = {
-        1.0/3.0,
-        1.0/3.0,
-        1.0/3.0
-    };
+// static void test_entropy_uniform_three_classes() {
+//     double data[] = {
+//         1.0/3.0,
+//         1.0/3.0,
+//         1.0/3.0
+//     };
 
-    double_array probs = {
-        .size = 3,
-        .data = data
-    };
+//     double_array probs = {
+//         .size = 3,
+//         .data = data
+//     };
 
-    ASSERT_DOUBLE_EQ(
-        entropy(probs),
-        log(3.0),
-        1e-12
-    );
-}
+//     ASSERT_DOUBLE_EQ(
+//         entropy(probs),
+//         log(3.0),
+//         1e-12
+//     );
+// }
 
-static void assert_partition_valid(const double* X, size_t* indexes, size_t start_idx, size_t mid, size_t end_idx, size_t feature, double t, size_t p) {
-    for (size_t i = start_idx; i < mid; ++i) {
-        ASSERT(X[indexes[i] * p + feature] < t);
-    }
-    for (size_t i = mid; i < end_idx; ++i) {
-        ASSERT(X[indexes[i] * p + feature] >= t);
-    }
-}
+// static void assert_partition_valid(const double* X, size_t* indexes, size_t start_idx, size_t mid, size_t end_idx, size_t feature, double t, size_t p) {
+//     for (size_t i = start_idx; i < mid; ++i) {
+//         ASSERT(X[indexes[i] * p + feature] < t);
+//     }
+//     for (size_t i = mid; i < end_idx; ++i) {
+//         ASSERT(X[indexes[i] * p + feature] >= t);
+//     }
+// }
 
-static void test_partition_basic() {
-    double X[] = {1.0, 5.0, 2.0, 7.0};
+// static void test_partition_basic() {
+//     double X[] = {1.0, 5.0, 2.0, 7.0};
 
-    size_t indexes[] = {0,1,2,3};
+//     size_t indexes[] = {0,1,2,3};
 
-    size_t mid =
-        partition(X, indexes, 0, 4, 0, 3.0, 1);
+//     size_t mid =
+//         partition(X, indexes, 0, 4, 0, 3.0, 1);
 
-    assert_partition_valid(X, indexes, 0, mid, 4, 0, 3.0, 1);
+//     assert_partition_valid(X, indexes, 0, mid, 4, 0, 3.0, 1);
 
-    ASSERT(mid == 2);
-}
+//     ASSERT(mid == 2);
+// }
 
-static void test_partition_already_partitioned() {
-    double X[] = {1.0, 2.0, 5.0, 6.0};
+// static void test_partition_already_partitioned() {
+//     double X[] = {1.0, 2.0, 5.0, 6.0};
 
-    size_t indexes[] = {0,1,2,3};
+//     size_t indexes[] = {0,1,2,3};
 
-    size_t mid = partition(X, indexes, 0, 4, 0, 4.0, 1);
+//     size_t mid = partition(X, indexes, 0, 4, 0, 4.0, 1);
 
-    assert_partition_valid(X, indexes, 0, mid, 4, 0, 4.0, 1);
+//     assert_partition_valid(X, indexes, 0, mid, 4, 0, 4.0, 1);
 
-    ASSERT(mid == 2);
-}
+//     ASSERT(mid == 2);
+// }
 
-static void test_partition_all_left() {
-    double X[] = {1.0, 2.0};
+// static void test_partition_all_left() {
+//     double X[] = {1.0, 2.0};
 
-    size_t indexes[] = {0,1};
+//     size_t indexes[] = {0,1};
 
-    size_t mid = partition(X, indexes, 0, 2, 0, 5.0, 1);
+//     size_t mid = partition(X, indexes, 0, 2, 0, 5.0, 1);
 
-    ASSERT(mid == 2);
+//     ASSERT(mid == 2);
 
-    assert_partition_valid(X, indexes, 0, mid, 2, 0, 5.0, 1);
-}
+//     assert_partition_valid(X, indexes, 0, mid, 2, 0, 5.0, 1);
+// }
 
-static void test_partition_all_right() {
-    double X[] = {5.0, 6.0};
+// static void test_partition_all_right() {
+//     double X[] = {5.0, 6.0};
 
-    size_t indexes[] = {0,1};
+//     size_t indexes[] = {0,1};
 
-    size_t mid = partition(X, indexes, 0, 2, 0, 5.0, 1);
+//     size_t mid = partition(X, indexes, 0, 2, 0, 5.0, 1);
 
-    ASSERT(mid == 0);
+//     ASSERT(mid == 0);
 
-    assert_partition_valid(X, indexes, 0, mid, 2, 0, 5.0, 1);
-}
+//     assert_partition_valid(X, indexes, 0, mid, 2, 0, 5.0, 1);
+// }
 
-static void test_partition_equal_goes_right() {
-    double X[] = {3.0, 2.0};
+// static void test_partition_equal_goes_right() {
+//     double X[] = {3.0, 2.0};
 
-    size_t indexes[] = {0,1};
+//     size_t indexes[] = {0,1};
 
-    size_t mid = partition(X, indexes, 0, 2, 0, 3.0, 1);
+//     size_t mid = partition(X, indexes, 0, 2, 0, 3.0, 1);
 
-    assert_partition_valid(X, indexes, 0, mid, 2, 0, 3.0, 1);
+//     assert_partition_valid(X, indexes, 0, mid, 2, 0, 3.0, 1);
 
-    ASSERT(mid == 1);
-}
+//     ASSERT(mid == 1);
+// }
 
-static void test_partition_subrange() {
-    double X[] = {100.0, 1.0, 5.0, 2.0, 100.0};
+// static void test_partition_subrange() {
+//     double X[] = {100.0, 1.0, 5.0, 2.0, 100.0};
 
-    size_t indexes[] = {0,1,2,3,4};
+//     size_t indexes[] = {0,1,2,3,4};
 
-    size_t mid = partition(X, indexes, 1, 4, 0, 3.0, 1);
+//     size_t mid = partition(X, indexes, 1, 4, 0, 3.0, 1);
 
-    /*
-        only indexes[1:4] may change
-    */
+//     /*
+//         only indexes[1:4] may change
+//     */
 
-    ASSERT(indexes[0] == 0);
-    ASSERT(indexes[4] == 4);
+//     ASSERT(indexes[0] == 0);
+//     ASSERT(indexes[4] == 4);
 
-    assert_partition_valid(X, indexes, 1, mid, 4, 0, 3.0, 1);
-}
+//     assert_partition_valid(X, indexes, 1, mid, 4, 0, 3.0, 1);
+// }
 
-static void check_partition(const double* X, size_t *indexes, size_t start_idx, size_t end_idx, size_t feature, size_t mid, size_t p) {
-    double pivot = X[indexes[mid] * p + feature];
-    for (size_t i = start_idx; i < mid; ++i) {
-        ASSERT(X[indexes[i] * p + feature] < pivot);
-    }
-    for (size_t i = mid + 1; i < end_idx; ++i) {
-        ASSERT(X[indexes[i] * p + feature] >= pivot);
-    }
-}
+// static void check_partition(const double* X, size_t *indexes, size_t start_idx, size_t end_idx, size_t feature, size_t mid, size_t p) {
+//     double pivot = X[indexes[mid] * p + feature];
+//     for (size_t i = start_idx; i < mid; ++i) {
+//         ASSERT(X[indexes[i] * p + feature] < pivot);
+//     }
+//     for (size_t i = mid + 1; i < end_idx; ++i) {
+//         ASSERT(X[indexes[i] * p + feature] >= pivot);
+//     }
+// }
 
-static void test_sorted() {
-    double X[] = {1.0, 2.0, 3.0, 4.0};
+// static void test_sorted() {
+//     double X[] = {1.0, 2.0, 3.0, 4.0};
 
-    size_t indexes[] = {0,1,2,3};
+//     size_t indexes[] = {0,1,2,3};
 
-    size_t mid = partition_quicksort(X, indexes, 0, 4, 0, 3, 1); // pivot = 4
+//     size_t mid = partition_quicksort(X, indexes, 0, 4, 0, 3, 1); // pivot = 4
 
-    check_partition(X, indexes, 0, 4, 0, mid, 1);
-}
+//     check_partition(X, indexes, 0, 4, 0, mid, 1);
+// }
 
-static void test_reverse() {
-    double X[] = {4.0, 3.0, 2.0, 1.0};
+// static void test_reverse() {
+//     double X[] = {4.0, 3.0, 2.0, 1.0};
 
-    size_t indexes[] = {0,1,2,3};
+//     size_t indexes[] = {0,1,2,3};
 
-    size_t mid = partition_quicksort(X, indexes, 0, 4, 0, 0, 1); // pivot = 4
+//     size_t mid = partition_quicksort(X, indexes, 0, 4, 0, 0, 1); // pivot = 4
 
-    check_partition(X, indexes, 0, 4, 0, mid, 1);
-}
+//     check_partition(X, indexes, 0, 4, 0, mid, 1);
+// }
 
-static void test_duplicates() {
-    double X[] = {5.0, 1.0, 5.0, 3.0, 5.0};
+// static void test_duplicates() {
+//     double X[] = {5.0, 1.0, 5.0, 3.0, 5.0};
 
-    size_t indexes[] = {0,1,2,3,4};
+//     size_t indexes[] = {0,1,2,3,4};
 
-    size_t mid = partition_quicksort(X, indexes, 0, 5, 0, 2, 1); // pivot = 5
+//     size_t mid = partition_quicksort(X, indexes, 0, 5, 0, 2, 1); // pivot = 5
 
-    check_partition(X, indexes, 0, 5, 0, mid, 1);
-}
+//     check_partition(X, indexes, 0, 5, 0, mid, 1);
+// }
 
-static void test_all_equal() {
-    double X[] = {7.0, 7.0, 7.0, 7.0};
+// static void test_all_equal() {
+//     double X[] = {7.0, 7.0, 7.0, 7.0};
 
-    size_t indexes[] = {0,1,2,3};
+//     size_t indexes[] = {0,1,2,3};
 
-    size_t mid = partition_quicksort(X, indexes, 0, 4, 0, 1, 1); // pivot = 7
+//     size_t mid = partition_quicksort(X, indexes, 0, 4, 0, 1, 1); // pivot = 7
 
-    check_partition(X, indexes, 0, 4, 0, mid, 1);
-}
+//     check_partition(X, indexes, 0, 4, 0, mid, 1);
+// }
 
-static void test_pivot_smallest() {
-    double X[] = {9.0, 8.0, 1.0, 7.0};
+// static void test_pivot_smallest() {
+//     double X[] = {9.0, 8.0, 1.0, 7.0};
 
-    size_t indexes[] = {0,1,2,3};
+//     size_t indexes[] = {0,1,2,3};
 
-    size_t mid = partition_quicksort(X, indexes, 0, 4, 0, 2, 1); // pivot = 3
+//     size_t mid = partition_quicksort(X, indexes, 0, 4, 0, 2, 1); // pivot = 3
 
-    ASSERT(mid == 0);
+//     ASSERT(mid == 0);
 
-    check_partition(X, indexes, 0, 4, 0, mid, 1);
-}
+//     check_partition(X, indexes, 0, 4, 0, mid, 1);
+// }
 
-static void test_pivot_largest() {
-    double X[] = {1.0, 2.0, 9.0, 3.0};
+// static void test_pivot_largest() {
+//     double X[] = {1.0, 2.0, 9.0, 3.0};
 
-    size_t indexes[] = {0,1,2,3};
+//     size_t indexes[] = {0,1,2,3};
 
-    size_t mid = partition_quicksort(X, indexes, 0, 4, 0, 2, 1); // pivot = 3
+//     size_t mid = partition_quicksort(X, indexes, 0, 4, 0, 2, 1); // pivot = 3
 
-    ASSERT(mid == 3);
+//     ASSERT(mid == 3);
 
-    check_partition(X, indexes, 0, 4, 0, mid, 1);
-}
+//     check_partition(X, indexes, 0, 4, 0, mid, 1);
+// }
 
-static void test_subrange() {
-    double X[] = {10.0, 4.0, 2.0, 8.0, 99.0};
+// static void test_subrange() {
+//     double X[] = {10.0, 4.0, 2.0, 8.0, 99.0};
 
-    size_t indexes[] = {0,1,2,3,4};
+//     size_t indexes[] = {0,1,2,3,4};
 
-    size_t mid = partition_quicksort(X, indexes, 1, 4, 0, 1, 1); // pivot = 4
+//     size_t mid = partition_quicksort(X, indexes, 1, 4, 0, 1, 1); // pivot = 4
 
-    // untouched
-    ASSERT(indexes[0] == 0);
-    ASSERT(indexes[4] == 4);
+//     // untouched
+//     ASSERT(indexes[0] == 0);
+//     ASSERT(indexes[4] == 4);
 
-    check_partition(X, indexes, 1, 4, 0, mid, 1);
-}
+//     check_partition(X, indexes, 1, 4, 0, mid, 1);
+// }
 
-static void assert_sorted(const double* X, size_t feature, size_t* indexes, size_t start_idx, size_t end_idx, size_t p) {
-    if (end_idx - start_idx < 2)
-        return;
-    for (size_t i = start_idx + 1; i < end_idx; ++i) {
-        double prev = X[indexes[i-1] * p + feature];
-        double curr = X[indexes[i] * p + feature];
-        ASSERT(prev <= curr);
-    }
-}
+// static void assert_sorted(const double* X, size_t feature, size_t* indexes, size_t start_idx, size_t end_idx, size_t p) {
+//     if (end_idx - start_idx < 2)
+//         return;
+//     for (size_t i = start_idx + 1; i < end_idx; ++i) {
+//         double prev = X[indexes[i-1] * p + feature];
+//         double curr = X[indexes[i] * p + feature];
+//         ASSERT(prev <= curr);
+//     }
+// }
 
-static void assert_contains_indexes( size_t* indexes, size_t n) {
-    int* seen = calloc(n, sizeof(int));
-    for (size_t i = 0; i < n; ++i) {
-        ASSERT(indexes[i] < n);
-        ASSERT(!seen[indexes[i]]);
-        seen[indexes[i]] = 1;
-    }
-    free(seen);
-}
+// static void assert_contains_indexes( size_t* indexes, size_t n) {
+//     int* seen = calloc(n, sizeof(int));
+//     for (size_t i = 0; i < n; ++i) {
+//         ASSERT(indexes[i] < n);
+//         ASSERT(!seen[indexes[i]]);
+//         seen[indexes[i]] = 1;
+//     }
+//     free(seen);
+// }
 
-static void test_argsort_basic() {
-    double X[] = {5.0, 1.0, 3.0};
+// static void test_argsort_basic() {
+//     double X[] = {5.0, 1.0, 3.0};
 
-    size_t indexes[] = {0,1,2};
+//     size_t indexes[] = {0,1,2};
 
-    argsort(X, 0, indexes, 0, 3, 1);
+//     argsort(X, 0, indexes, 0, 3, 1);
 
-    assert_sorted(X, 0, indexes, 0, 3, 1);
+//     assert_sorted(X, 0, indexes, 0, 3, 1);
 
-    ASSERT(indexes[0] == 1);
-    ASSERT(indexes[1] == 2);
-    ASSERT(indexes[2] == 0);
-}
+//     ASSERT(indexes[0] == 1);
+//     ASSERT(indexes[1] == 2);
+//     ASSERT(indexes[2] == 0);
+// }
 
-static void test_argsort_already_sorted() {
-    double X[] = {1.0, 2.0, 3.0};
+// static void test_argsort_already_sorted() {
+//     double X[] = {1.0, 2.0, 3.0};
 
-    size_t indexes[] = {0,1,2};
+//     size_t indexes[] = {0,1,2};
 
-    argsort(X, 0, indexes, 0, 3, 1);
+//     argsort(X, 0, indexes, 0, 3, 1);
 
-    assert_sorted(X, 0, indexes, 0, 3, 1);
-}
+//     assert_sorted(X, 0, indexes, 0, 3, 1);
+// }
 
-static void test_argsort_duplicates() {
-    double X[] = {2.0, 1.0, 2.0, 1.0};
+// static void test_argsort_duplicates() {
+//     double X[] = {2.0, 1.0, 2.0, 1.0};
 
-    size_t indexes[] = {0,1,2,3};
+//     size_t indexes[] = {0,1,2,3};
 
-    argsort(X, 0, indexes, 0, 4, 1);
+//     argsort(X, 0, indexes, 0, 4, 1);
 
-    assert_sorted(X, 0, indexes, 0, 4, 1);
+//     assert_sorted(X, 0, indexes, 0, 4, 1);
 
-    assert_contains_indexes(indexes, 4);
-}
+//     assert_contains_indexes(indexes, 4);
+// }
 
-static void test_argsort_subrange() {
-    double X[] = {100.0, 3.0, 1.0, 2.0, 100.0};
+// static void test_argsort_subrange() {
+//     double X[] = {100.0, 3.0, 1.0, 2.0, 100.0};
 
-    size_t indexes[] = {0,1,2,3,4};
+//     size_t indexes[] = {0,1,2,3,4};
 
-    argsort(X, 0, indexes, 1, 4, 1);
+//     argsort(X, 0, indexes, 1, 4, 1);
 
-    ASSERT(indexes[0] == 0);
-    ASSERT(indexes[4] == 4);
+//     ASSERT(indexes[0] == 0);
+//     ASSERT(indexes[4] == 4);
 
-    assert_sorted(X, 0, indexes, 1, 4, 1);
-}
+//     assert_sorted(X, 0, indexes, 1, 4, 1);
+// }
 
-static void test_argsort_feature_selection() {
-    double X[] = {10.0, 3.0, 1.0, 2.0, 5.0, 1.0};
+// static void test_argsort_feature_selection() {
+//     double X[] = {10.0, 3.0, 1.0, 2.0, 5.0, 1.0};
 
-    size_t indexes[] = {0,1,2};
+//     size_t indexes[] = {0,1,2};
 
-    argsort(X, 1, indexes, 0, 3, 2);
+//     argsort(X, 1, indexes, 0, 3, 2);
 
-    assert_sorted(X, 1, indexes, 0, 3, 2);
+//     assert_sorted(X, 1, indexes, 0, 3, 2);
 
-    ASSERT(indexes[0] == 2);
-    ASSERT(indexes[1] == 1);
-    ASSERT(indexes[2] == 0);
-}
+//     ASSERT(indexes[0] == 2);
+//     ASSERT(indexes[1] == 1);
+//     ASSERT(indexes[2] == 0);
+// }
 
-static void test_argsort_large(size_t n) {
-    double** _X = generate_X(n, 1);
-    double* X = c_contiguous_array(_X, n, 1);
+// static void test_argsort_large(size_t n) {
+//     double** _X = generate_X(n, 1);
+//     double* X = c_contiguous_array(_X, n, 1);
 
-    idx_array indexes = init_indexes(n);
+//     idx_array indexes = init_indexes(n);
 
-    argsort(X, 0, indexes.data, 0, n, 1);
-    assert_sorted(X, 0, indexes.data, 0, n, 1);
+//     argsort(X, 0, indexes.data, 0, n, 1);
+//     assert_sorted(X, 0, indexes.data, 0, n, 1);
 
-    free_X(_X, n);
-    free(indexes.data);
-    free(X);
-}
+//     free_X(_X, n);
+//     free(indexes.data);
+//     free(X);
+// }
 
-static void tests() {
-    // initializing indexes
-    test_init_indexes(0);
-    test_init_indexes(1);
-    test_init_indexes(5);
+// static void tests() {
+//     // initializing indexes
+//     test_init_indexes(0);
+//     test_init_indexes(1);
+//     test_init_indexes(5);
 
-    // detecting the number of classes
-    test_get_classes();
+//     // detecting the number of classes
+//     test_get_classes();
 
-    // initializing array with zeros
-    test_zeros_array(0);
-    test_zeros_array(1);
-    test_zeros_array(5);
+//     // initializing array with zeros
+//     test_zeros_array(0);
+//     test_zeros_array(1);
+//     test_zeros_array(5);
 
-    // test probs calculation
-    test_get_probs_basic();
-    test_get_probs_subset_indexes();
-    test_get_probs_subrange();
-    test_get_probs_sum_to_one();
+//     // test probs calculation
+//     test_get_probs_basic();
+//     test_get_probs_subset_indexes();
+//     test_get_probs_subrange();
+//     test_get_probs_sum_to_one();
 
-    // test gini
-    test_gini_pure();
-    test_gini_binary_balanced();
-    test_gini_uniform_three_classes();
+//     // test gini
+//     test_gini_pure();
+//     test_gini_binary_balanced();
+//     test_gini_uniform_three_classes();
 
-    // test entropy
-    test_entropy_pure();
-    test_entropy_binary_balanced();
-    test_entropy_uniform_three_classes();
+//     // test entropy
+//     test_entropy_pure();
+//     test_entropy_binary_balanced();
+//     test_entropy_uniform_three_classes();
 
-    // test partition
-    test_partition_basic();
-    test_partition_already_partitioned();
-    test_partition_all_left();
-    test_partition_all_right();
-    test_partition_equal_goes_right();
-    test_partition_subrange();
+//     // test partition
+//     test_partition_basic();
+//     test_partition_already_partitioned();
+//     test_partition_all_left();
+//     test_partition_all_right();
+//     test_partition_equal_goes_right();
+//     test_partition_subrange();
 
-    printf("Partition tests passed\n");
+//     printf("Partition tests passed\n");
 
-    // test quicksort partition
-    test_sorted();
-    test_reverse();
-    test_duplicates();
-    test_all_equal();
-    test_pivot_smallest();
-    test_pivot_largest();
-    test_subrange();
+//     // test quicksort partition
+//     test_sorted();
+//     test_reverse();
+//     test_duplicates();
+//     test_all_equal();
+//     test_pivot_smallest();
+//     test_pivot_largest();
+//     test_subrange();
 
-    printf("Quicksort partition tests passed\n");
+//     printf("Quicksort partition tests passed\n");
 
-    // test argort
-    test_argsort_basic();
-    test_argsort_already_sorted();
-    test_argsort_duplicates();
-    test_argsort_subrange();
-    test_argsort_feature_selection();
-    test_argsort_large(1);
-    test_argsort_large(2);
-    test_argsort_large(5);
-    test_argsort_large(10);
-    test_argsort_large(1000);
-    test_argsort_large(1000000);
+//     // test argort
+//     test_argsort_basic();
+//     test_argsort_already_sorted();
+//     test_argsort_duplicates();
+//     test_argsort_subrange();
+//     test_argsort_feature_selection();
+//     test_argsort_large(1);
+//     test_argsort_large(2);
+//     test_argsort_large(5);
+//     test_argsort_large(10);
+//     test_argsort_large(1000);
+//     test_argsort_large(1000000);
 
-    printf("Argsort tests passed\n");
+//     printf("Argsort tests passed\n");
 
-    printf("All tests passed\n");
+//     printf("All tests passed\n");
 
-}
+// }
 
 // ----- DEBUG -----
 
@@ -1210,7 +1444,7 @@ static void print_indent(size_t depth) {
         printf("  ");
 }
 
-// TODO maybe should be accessible from other files 
+// // TODO maybe should be accessible from other files 
 static void inspect_tree_node(const Node* node, size_t depth) {
     if (!node) {
         print_indent(depth);
@@ -1343,8 +1577,8 @@ static void tree_test() {
 
 int main() {
 
-    printf("Running TESTS...\n");
-    tests();
+    // printf("Running TESTS...\n");
+    // tests();
 
     printf("Running tree test...\n");
     tree_test();
