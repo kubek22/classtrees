@@ -4,6 +4,7 @@
 
 #include <stddef.h>
 #include <stdint.h>
+#include "random.h"
 
 
 // defining types
@@ -33,7 +34,9 @@ typedef double (*impurity_func_t)(idx_array, size_t);
 double gini_from_counts(idx_array counts, size_t n);
 double entropy_from_counts(idx_array counts, size_t n);
 size_t get_classes(size_t* y, size_t n);
-void tree_fit(Node** root, const double* X, const size_t* y, size_t n, size_t p, size_t c, impurity_func_t impurity_func, size_t max_height, size_t min_samples_split);
+void tree_fit(Node** root, const double* X, const size_t* y, size_t n, size_t p, size_t c,
+    impurity_func_t impurity_func, size_t max_height, size_t min_samples_split, size_t min_samples_leaf,
+    size_t max_features, pcg32_random_t* rng);
 int64_t * tree_predict(Node* root, const double* X, size_t n, size_t p);
 double* tree_predict_proba(Node* root, const double* X, size_t n, size_t p);
 

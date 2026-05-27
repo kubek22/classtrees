@@ -3,8 +3,10 @@
 
 #include <Python.h>
 #include <math.h>
+#include <limits.h>
 
 #include "tree.h"
+#include "random.h"
 
 #include <numpy/arrayobject.h>
 #include <numpy/ndarrayobject.h>
@@ -22,6 +24,10 @@ typedef struct {
     impurity_func_t impurity_func;
     size_t max_height;
     size_t min_samples_split;
+    size_t min_samples_leaf;
+    size_t max_features;
+    int random_state; // negative value works like None
+    pcg32_random_t rng;
 } PyTree;
 
 impurity_func_t get_impurity_func(const char* name) {
@@ -48,94 +54,373 @@ static PyObject* PyTree_new(PyTypeObject* type, PyObject* args, PyObject* kwds) 
     self->n_features = 0;
     self->max_height = 0;
     self->min_samples_split = 0;
+    self->min_samples_leaf = 0;
+    self->max_features = 0;
+    self->random_state = 0;
+    self->rng.state = 0;
+    self->rng.inc = 0;
 
     return (PyObject*)self;
 }
 
+static int parse_impurity(PyObject* impurity_obj, const char** out_name) {
+    if (!PyUnicode_Check(impurity_obj)) {
+        PyErr_SetString(PyExc_TypeError, "impurity must be a string");
+        return -1;
+    }
+
+    const char* name = PyUnicode_AsUTF8(impurity_obj);
+    if (!name) {
+        return -1;  // PyUnicode_AsUTF8 already sets error
+    }
+
+    *out_name = name;
+    return 0;
+}
+
+static int parse_max_height(PyObject* obj, size_t* out)
+{
+    // Case 1: None → unbounded
+    if (obj == Py_None) {
+        *out = SIZE_MAX;
+        return 0;
+    }
+
+    // Case 2: must be int
+    if (!PyLong_Check(obj)) {
+        PyErr_SetString(PyExc_TypeError,
+                        "max_height must be int or None");
+        return -1;
+    }
+
+    // Convert to long long safely
+    long long value = PyLong_AsLongLong(obj);
+
+    // PyLong_AsLongLong already sets overflow error if needed
+    if (PyErr_Occurred()) {
+        return -1;
+    }
+
+    // Validate domain
+    if (value < 0) {
+        PyErr_SetString(PyExc_ValueError,
+                        "max_height must be >= 0 or None");
+        return -1;
+    }
+
+    // Cast safely to size_t
+    *out = (size_t)value;
+    return 0;
+}
+
+static int parse_min_samples_split(PyObject* obj, size_t* out)
+{
+    // reject None (required parameter)
+    if (obj == NULL || obj == Py_None) {
+        PyErr_SetString(PyExc_TypeError,
+                        "min_samples_split must be int or float >= 2");
+        return -1;
+    }
+
+    // reject bool (subclass of int in Python C API)
+    if (PyBool_Check(obj)) {
+        PyErr_SetString(PyExc_TypeError,
+                        "min_samples_split must be int or float, not bool");
+        return -1;
+    }
+
+    double value;
+
+    // int case
+    if (PyLong_Check(obj)) {
+        value = (double)PyLong_AsLongLong(obj);
+        if (PyErr_Occurred())
+            return -1;
+    }
+    // float case
+    else if (PyFloat_Check(obj)) {
+        value = PyFloat_AsDouble(obj);
+        if (PyErr_Occurred())
+            return -1;
+    }
+    else {
+        PyErr_SetString(PyExc_TypeError,
+                        "min_samples_split must be int or float");
+        return -1;
+    }
+
+    // domain check before conversion
+    if (value < 2.0) {
+        PyErr_SetString(PyExc_ValueError,
+                        "min_samples_split must be >= 2");
+        return -1;
+    }
+
+    // floor for floats
+    double floored = floor(value);
+
+    // final safety check (handles 2.0 edge case safely)
+    if (floored < 2.0) {
+        PyErr_SetString(PyExc_ValueError,
+                        "min_samples_split must be >= 2 after flooring");
+        return -1;
+    }
+
+    if (floored > (double)SIZE_MAX) {
+        PyErr_SetString(PyExc_OverflowError,
+                        "min_samples_split too large");
+        return -1;
+    }
+
+    *out = (size_t)floored;
+    return 0;
+}
+
+static int parse_min_samples_leaf(PyObject* obj, size_t* out)
+{
+    // reject None (required parameter)
+    if (obj == NULL || obj == Py_None) {
+        PyErr_SetString(PyExc_TypeError,
+                        "min_samples_leaf must be int or float >= 1");
+        return -1;
+    }
+
+    // reject bool (subclass of int in Python C API)
+    if (PyBool_Check(obj)) {
+        PyErr_SetString(PyExc_TypeError,
+                        "min_samples_leaf must be int or float, not bool");
+        return -1;
+    }
+
+    double value;
+
+    // int case
+    if (PyLong_Check(obj)) {
+        value = (double)PyLong_AsLongLong(obj);
+        if (PyErr_Occurred())
+            return -1;
+    }
+    // float case
+    else if (PyFloat_Check(obj)) {
+        value = PyFloat_AsDouble(obj);
+        if (PyErr_Occurred())
+            return -1;
+    }
+    else {
+        PyErr_SetString(PyExc_TypeError,
+                        "min_samples_leaf must be int or float");
+        return -1;
+    }
+
+    // domain check before conversion
+    if (value < 1.0) {
+        PyErr_SetString(PyExc_ValueError,
+                        "min_samples_leaf must be >= 1");
+        return -1;
+    }
+
+    // floor for floats
+    double floored = floor(value);
+
+    // final safety check (handles 1.0 edge case safely)
+    if (floored < 1.0) {
+        PyErr_SetString(PyExc_ValueError,
+                        "min_samples_leaf must be >= 1 after flooring");
+        return -1;
+    }
+
+    if (floored > (double)SIZE_MAX) {
+        PyErr_SetString(PyExc_OverflowError,
+                        "min_samples_leaf too large");
+        return -1;
+    }
+
+    *out = (size_t)floored;
+    return 0;
+}
+
+static int parse_max_features(PyObject* obj, size_t* out)
+{
+    // None -> unlimited
+    if (obj == Py_None) {
+        *out = SIZE_MAX;
+        return 0;
+    }
+
+    // Reject bool explicitly
+    if (PyBool_Check(obj)) {
+        PyErr_SetString(PyExc_TypeError,
+                        "max_features must be int, float, or None");
+        return -1;
+    }
+
+    double value;
+
+    // int case
+    if (PyLong_Check(obj)) {
+        value = (double)PyLong_AsLongLong(obj);
+
+        if (PyErr_Occurred())
+            return -1;
+    }
+    // float case
+    else if (PyFloat_Check(obj)) {
+        value = PyFloat_AsDouble(obj);
+
+        if (PyErr_Occurred())
+            return -1;
+    }
+    else {
+        PyErr_SetString(PyExc_TypeError,
+                        "max_features must be int, float, or None");
+        return -1;
+    }
+
+    // Must be >= 1 BEFORE flooring/casting
+    if (value < 1.0) {
+        PyErr_SetString(PyExc_ValueError,
+                        "max_features must be >= 1");
+        return -1;
+    }
+
+    // floor semantics
+    double floored = floor(value);
+
+    // overflow protection
+    if (floored > (double)SIZE_MAX) {
+        PyErr_SetString(PyExc_OverflowError,
+                        "max_features too large");
+        return -1;
+    }
+
+    *out = (size_t)floored;
+
+    return 0;
+}
+
+static int parse_random_state(PyObject* obj, int* out)
+{
+    // None -> sentinel value
+    if (obj == Py_None) {
+        *out = -1;
+        return 0;
+    }
+
+    // Reject bool explicitly
+    if (PyBool_Check(obj)) {
+        PyErr_SetString(PyExc_TypeError,
+                        "random_state must be int or None");
+        return -1;
+    }
+
+    // Must be int
+    if (!PyLong_Check(obj)) {
+        PyErr_SetString(PyExc_TypeError,
+                        "random_state must be int or None");
+        return -1;
+    }
+
+    long value = PyLong_AsLong(obj);
+
+    // Handles overflow automatically
+    if (PyErr_Occurred()) {
+        return -1;
+    }
+
+    // Must be >= 0
+    if (value < 0) {
+        PyErr_SetString(PyExc_ValueError,
+                        "random_state must be >= 0 or None");
+        return -1;
+    }
+
+    // Extra safety for platforms where long > int
+    if (value > INT_MAX) {
+        PyErr_SetString(PyExc_OverflowError,
+                        "random_state too large");
+        return -1;
+    }
+
+    *out = (int)value;
+
+    return 0;
+}
+
 static int PyTree_init(PyTree* self, PyObject* args, PyObject* kwds)
 {
+    // NULL for required parameters, Py_None for optional parameters with None default
     PyObject* impurity_obj = NULL;
-    PyObject* max_height_obj = Py_None;
+    PyObject* max_height_obj = NULL;
     PyObject* min_samples_split_obj = NULL;
+    PyObject* min_samples_leaf_obj = NULL;
+    PyObject* max_features_obj = NULL;
+    PyObject* random_state_obj = NULL;
 
     static char* kwlist[] = {
         "impurity",
         "max_height",
         "min_samples_split",
+        "min_samples_leaf",
+        "max_features",
+        "random_state",
         NULL
     };
 
     if (!PyArg_ParseTupleAndKeywords(
             args,
             kwds,
-            "OOO",
+            "OOOOOO",
             kwlist,
             &impurity_obj,
             &max_height_obj,
-            &min_samples_split_obj))
+            &min_samples_split_obj,
+            &min_samples_leaf_obj,
+            &max_features_obj,
+            &random_state_obj))
     {
         return -1;
     }
 
-    /* impurity */
-    const char* impurity_name = PyUnicode_AsUTF8(impurity_obj);
-    if (!impurity_name) {
-        PyErr_SetString(PyExc_TypeError,
-                        "impurity must be a string");
+    // impurity
+    const char *impurity_name = NULL;
+    if (parse_impurity(impurity_obj, &impurity_name) < 0)
         return -1;
-    }
-
-    /* max_height (None supported) */
-    size_t max_height;
-
-    if (max_height_obj == Py_None) {
-        max_height = SIZE_MAX;
-    } else if (PyLong_Check(max_height_obj)) {
-        long tmp = PyLong_AsLong(max_height_obj);
-        if (PyErr_Occurred())
-            return -1;
-
-        if (tmp < 0) {
-            PyErr_SetString(PyExc_ValueError,
-                            "max_height must be >= 0 or None");
-            return -1;
-        }
-
-        max_height = (size_t)tmp;
-    } else {
-        PyErr_SetString(PyExc_TypeError,
-                        "max_height must be int or None");
-        return -1;
-    }
-
-    /* min_samples_split */
-    if (!PyLong_Check(min_samples_split_obj)) {
-        PyErr_SetString(PyExc_TypeError,
-                        "min_samples_split must be int");
-        return -1;
-    }
-
-    long mss = PyLong_AsLong(min_samples_split_obj);
-    if (PyErr_Occurred())
-        return -1;
-
-    if (mss < 1) {
-        PyErr_SetString(PyExc_ValueError,
-                        "min_samples_split must be >= 1");
-        return -1;
-    }
-
-    /* init impurity */
     self->impurity_func = get_impurity_func(impurity_name);
-    if (!self->impurity_func)
+    if (!self->impurity_func) {
+        PyErr_SetString(PyExc_ValueError, "unknown impurity function");
         return -1;
+    }
 
-    self->max_height = max_height;
-    self->min_samples_split = (size_t)mss;
+    // max_height (None supported)
+    parse_max_height(max_height_obj, &self->max_height);
 
+    // min_samples_split
+    parse_min_samples_split(min_samples_split_obj, &self->min_samples_split);
+
+    // min_samples_leaf
+    parse_min_samples_leaf(min_samples_leaf_obj, &self->min_samples_leaf);
+
+    // max_features
+    parse_max_features(max_features_obj, &self->max_features);
+
+    // random_state
+    parse_random_state(random_state_obj, &self->random_state);
+
+    // set remaining fields to default values
     self->n_classes = 0;
     self->n_features = 0;
     self->root = NULL;
+
+    if (self->random_state < 0) {
+        // Seed with current time if no seed provided
+        self->rng.state = (uint64_t)time(NULL);
+    } else {
+        // Seed with provided random_state
+        self->rng.state = (uint64_t)self->random_state;
+    }
+    self->rng.inc = INC_DEFAULT; // fixed odd constant
+
+    pcg32_random_r(&self->rng); // advance state to avoid initial low-quality output
 
     return 0;
 }
@@ -325,7 +610,10 @@ static PyObject* fit(PyTree* self, PyObject* args) {
         self->n_classes,
         self->impurity_func,
         self->max_height,
-        self->min_samples_split
+        self->min_samples_split,
+        self->min_samples_leaf,
+        self->max_features,
+        &self->rng
     );
 
     free(y_conv);
