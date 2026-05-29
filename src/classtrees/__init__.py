@@ -1,3 +1,3 @@
-from .funs import ClassTree
+from .tree import ClassTree
 
 __all__ = ["ClassTree"]

@@ -4,7 +4,9 @@ import numpy
 ext_modules = [
     Extension(
         "classtrees.tree_module",
-        sources=["src/classtrees/tree_module.c", "src/classtrees/tree.c"],
+        sources=["src/classtrees/tree_module.c",
+                 "src/classtrees/tree.c",
+                 "src/classtrees/checks.c",],
         include_dirs=[numpy.get_include(), "src/classtrees"],
         extra_compile_args=["-O3", "-DNDEBUG"]
     )

@@ -67,3 +67,8 @@ def test_correct_random_state(value):
 def test_wrong_random_state(value):
     with pytest.raises(Exception):
         ClassTree(random_state=value)
+
+def test_unknown_param():
+    with pytest.raises(Exception):
+        ClassTree(unknown=0)
+

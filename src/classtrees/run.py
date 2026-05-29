@@ -18,7 +18,8 @@ N_RUNS = 10
 RANDOM_STATE = 42
 CRITERION = "gini"
 MAX_DEPTH = None
-MIN_SAMPLES_SPLIT = 5
+MIN_SAMPLES_SPLIT = 2 #5
+MIN_SAMPLES_LEAF = 1 #2
 
 
 # -----------------------------
@@ -68,7 +69,7 @@ def benchmark_model(name, model_cls, X, y):
         # PREDICT
         y_pred, t_pred = time_fn(model.predict, X)
 
-        # PROBA (if supported)
+        # PROBA
         y_proba, t_proba = time_fn(model.predict_proba, X)
 
         acc = accuracy_score(y, y_pred)
@@ -94,6 +95,9 @@ class SklearnTree:
             criterion=CRITERION,
             max_depth=MAX_DEPTH,
             min_samples_split=MIN_SAMPLES_SPLIT,
+            min_samples_leaf=MIN_SAMPLES_LEAF,
+            max_features=N_FEATURES,
+            random_state=None
         )
 
     def fit(self, X, y):
@@ -108,7 +112,9 @@ class SklearnTree:
 
 class MyTree:
     def __init__(self):
-        self.model = ClassTree(max_height=MAX_DEPTH, min_samples_split=MIN_SAMPLES_SPLIT, impurity=CRITERION)
+        self.model = ClassTree(max_height=MAX_DEPTH, min_samples_split=MIN_SAMPLES_SPLIT,
+                               min_samples_leaf=MIN_SAMPLES_LEAF, max_features=N_FEATURES,
+                               random_state=None, impurity=CRITERION)
 
     def fit(self, X, y):
         return self.model.fit(X, y)

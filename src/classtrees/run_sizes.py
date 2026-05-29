@@ -25,6 +25,7 @@ RANDOM_STATE = 42
 CRITERION = "gini"
 MAX_DEPTH = None
 MIN_SAMPLES_SPLIT = 5
+MIN_SAMPLES_LEAF = 2
 
 CSV_OUTPUT = "benchmark_scaling.csv"
 
@@ -67,6 +68,9 @@ class SklearnTree:
             criterion=CRITERION,
             max_depth=MAX_DEPTH,
             min_samples_split=MIN_SAMPLES_SPLIT,
+            min_samples_leaf=MIN_SAMPLES_LEAF,
+            max_features=N_FEATURES,
+            random_state=None
         )
 
     def fit(self, X, y):
@@ -84,7 +88,10 @@ class MyTree:
         self.model = ClassTree(
             max_height=MAX_DEPTH,
             min_samples_split=MIN_SAMPLES_SPLIT,
-            impurity=CRITERION
+            min_samples_leaf=MIN_SAMPLES_LEAF,
+            max_features=N_FEATURES,
+            impurity=CRITERION,
+            random_state=None
         )
 
     def fit(self, X, y):

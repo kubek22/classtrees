@@ -52,6 +52,7 @@ def test_proba_single_class():
     assert proba.shape == (50, 1)
     np.testing.assert_allclose(proba[:, 0], 1.0, atol=1e-6)
 
+
 def test_proba_row_normalization_stability():
     X = np.random.randn(60, 3)
     y = (X[:, 0] > 0).astype(int)

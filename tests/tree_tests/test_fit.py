@@ -84,6 +84,14 @@ def test_fit_single_feature():
     tree = ClassTree()
     tree.fit(X, y)
 
+def test_double_fit():
+    X = np.random.randn(20, 1)
+    y = np.random.randint(0, 2, size=20)
+    tree = ClassTree()
+    tree.fit(X, y)
+    with pytest.raises(Exception):
+        tree.fit(X, y)
+
 def test_fit_all_same_features():
     X = np.ones((20, 3))
     y = np.random.randint(0, 2, size=20)
