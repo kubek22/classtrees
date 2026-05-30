@@ -393,7 +393,6 @@ static PyObject* rffit(PyForest* self, PyObject* args) {
     self->n_classes = get_classes(y_conv, n);
     self->n_features = p;
 
-    // TODO allocating memory for roots (maybe it should be somewhere else?), additional flag is_fitted may be safer
     // we store a pointer to a list of pointers to Nodes
     self->roots = (Node**)malloc(self->n_estimators * sizeof(Node*));
     for (size_t i = 0; i < self->n_estimators; i++) self->roots[i] = NULL;

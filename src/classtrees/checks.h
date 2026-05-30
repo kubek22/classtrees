@@ -46,8 +46,6 @@ typedef struct {
 } PyForest;
 
 
-// TODO should/can the funcitons be static?
-
 // parameter parsing
 
 impurity_func_t get_impurity_func(const char* name);
