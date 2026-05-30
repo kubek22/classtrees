@@ -66,7 +66,6 @@ void rf_fit(Node** roots, size_t n_estimators, const double* X, const int64_t* y
 
     // iterate over estimators
     // TODO use n_jobs
-    #pragma omp parallel for num_threads(threads)
     for (size_t i = 0; i < n_estimators; i++) {
         // generate bootstrap sample
         double* X_boot;
@@ -124,7 +123,6 @@ int64_t* rf_predict(Node** roots, size_t n_estimators, const double* X,
 
     int threads = get_num_threads(n_jobs);
 
-    #pragma omp parallel for num_threads(threads)
     for (size_t i = 0; i < n; i++) {
         ret[i] = 0;
         double max_prob = probs[i * c];
