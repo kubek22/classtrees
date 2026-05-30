@@ -30,7 +30,6 @@ typedef struct _Node {
 
 typedef double (*impurity_func_t)(idx_array, size_t);
 
-// impurity_func_t get_impurity_func(const char* str);
 double gini_from_counts(idx_array counts, size_t n);
 double entropy_from_counts(idx_array counts, size_t n);
 size_t get_classes(size_t* y, size_t n);

@@ -4,7 +4,7 @@
 #include <omp.h>
 
 
-// TODO repeated with tree.c
+// repeated with tree.c
 #define MAX(A, B) (((A)>(B))?(A):(B))
 #define MIN(A, B) (((A)<(B))?(A):(B))
 
@@ -65,7 +65,6 @@ void rf_fit(Node** roots, size_t n_estimators, const double* X, const int64_t* y
     int threads = get_num_threads(n_jobs);
 
     // iterate over estimators
-    // TODO use n_jobs
     #pragma omp parallel for num_threads(threads)
     for (size_t i = 0; i < n_estimators; i++) {
         // generate bootstrap sample
