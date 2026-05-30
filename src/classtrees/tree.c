@@ -546,7 +546,7 @@ void free_tree(Node* root) {
     free(root);
 }
 
-static double* predict_proba_one(Node* root, const double* x) {
+double* predict_proba_one(Node* root, const double* x) {
     // predicts a class for only one observation
     
     // sanity check

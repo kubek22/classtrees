@@ -6,9 +6,11 @@ ext_modules = [
         "classtrees.tree_module",
         sources=["src/classtrees/tree_module.c",
                  "src/classtrees/tree.c",
+                 "src/classtrees/randomforest.c",
                  "src/classtrees/checks.c",],
         include_dirs=[numpy.get_include(), "src/classtrees"],
-        extra_compile_args=["-O3", "-DNDEBUG"]
+        extra_compile_args=["-O3", "-DNDEBUG", "-fopenmp"],
+        extra_link_args=["-fopenmp"]
     )
 ]
 

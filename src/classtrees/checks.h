@@ -10,32 +10,51 @@
 #include "tree.h"
 #include "random.h"
 
-// Python object
+// Python objects
 
+// tree
 typedef struct {
     PyObject_HEAD
     Node* root;
     size_t n_classes;
     size_t n_features;
-
     impurity_func_t impurity_func;
-
     size_t max_height;
     size_t min_samples_split;
     size_t min_samples_leaf;
     size_t max_features;
-
     int random_state;
-
     pcg32_random_t rng;
 } PyTree;
 
+
+// random forest
+typedef struct {
+    PyObject_HEAD
+    Node** roots;
+    size_t n_estimators;
+    size_t n_classes;
+    size_t n_features;
+    impurity_func_t impurity_func;
+    size_t max_height;
+    size_t min_samples_split;
+    size_t min_samples_leaf;
+    size_t max_features;
+    int random_state;
+    pcg32_random_t* rngs;
+    int n_jobs;
+} PyForest;
+
+
+// TODO should/can the funcitons be static?
 
 // parameter parsing
 
 impurity_func_t get_impurity_func(const char* name);
 
 int parse_impurity(PyObject* obj, const char** out);
+
+int parse_n_estimators(PyObject* obj, size_t* out);
 
 int parse_max_height(PyObject* obj, size_t* out);
 
@@ -59,8 +78,13 @@ PyArrayObject* parse_y(PyObject* obj);
 
 int check_same_n(PyArrayObject* X, PyArrayObject* y);
 
+// tree
 int require_fitted(PyTree* self);
-
 int check_n_features(PyTree* self, PyArrayObject* X);
+
+// rf
+int require_fitted_rf(PyForest* self);
+int check_n_features_rf(PyForest* self, PyArrayObject* X);
+
 
 #endif

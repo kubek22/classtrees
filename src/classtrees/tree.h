@@ -39,6 +39,7 @@ void tree_fit(Node** root, const double* X, const size_t* y, size_t n, size_t p,
     size_t max_features, pcg32_random_t* rng);
 int64_t * tree_predict(Node* root, const double* X, size_t n, size_t p);
 double* tree_predict_proba(Node* root, const double* X, size_t n, size_t p);
+double* predict_proba_one(Node* root, const double* x);
 
 
 #endif
