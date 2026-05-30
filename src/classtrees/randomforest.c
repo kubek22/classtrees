@@ -87,34 +87,34 @@ double* rf_predict_proba(Node** roots, size_t n_estimators, const double* X,
     size_t n, size_t p, size_t c, int n_jobs)
 {
     double* ret = (double*)malloc(n * c * sizeof(double));
-    // if (!ret) return NULL;
-    // for (size_t i = 0; i < n * c; i++) ret[i] = 0.0;
+    if (!ret) return NULL;
+    for (size_t i = 0; i < n * c; i++) ret[i] = 0.0;
 
-    // for (size_t i = 0; i < n; i++) {
-    //     for (size_t j = 0; j < n_estimators; j++) {
-    //         // it returnes only a pointer to leaf probs, it should not be freed
-    //         double* x_probs = predict_proba_one(roots[j], &X[i * p]);
-    //         if (!x_probs) {
-    //             free(ret);
-    //             return NULL;
-    //         }
-    //         for (size_t k = 0; k < c; k++) {
-    //             ret[i * c + k] += x_probs[k];
-    //         }
-    //     }
-    //     for (size_t k = 0; k < c; k++) {
-    //         ret[i * c + k] /= (double)n_estimators;
-    //     }
-    // }
+    for (size_t i = 0; i < n; i++) {
+        for (size_t j = 0; j < n_estimators; j++) {
+            // it returnes only a pointer to leaf probs, it should not be freed
+            double* x_probs = predict_proba_one(roots[j], &X[i * p]);
+            if (!x_probs) {
+                free(ret);
+                return NULL;
+            }
+            for (size_t k = 0; k < c; k++) {
+                ret[i * c + k] += x_probs[k];
+            }
+        }
+        for (size_t k = 0; k < c; k++) {
+            ret[i * c + k] /= (double)n_estimators;
+        }
+    }
     return ret;
 }
 
 int64_t* rf_predict(Node** roots, size_t n_estimators, const double* X,
                     size_t n, size_t p, size_t c, int n_jobs)
 {
-    // double* probs = rf_predict_proba(roots, n_estimators, X, n, p, c, n_jobs);
-    // if (!probs)
-    //     return NULL;
+    double* probs = rf_predict_proba(roots, n_estimators, X, n, p, c, n_jobs);
+    if (!probs)
+        return NULL;
 
     int64_t* ret = (int64_t*)malloc(n * sizeof(int64_t));
     if (!ret) {
@@ -122,21 +122,21 @@ int64_t* rf_predict(Node** roots, size_t n_estimators, const double* X,
         return NULL;
     }
 
-    // int threads = get_num_threads(n_jobs);
+    int threads = get_num_threads(n_jobs);
 
-    // #pragma omp parallel for num_threads(threads)
-    // for (size_t i = 0; i < n; i++) {
-    //     ret[i] = 0;
-    //     double max_prob = probs[i * c];
-    //     for (size_t j = 1; j < c; j++) {
-    //         if (max_prob < probs[i * c + j]) {
-    //             ret[i] = (int64_t)j;
-    //             max_prob = probs[i * c + j];
-    //         }
-    //     }
-    // }
+    #pragma omp parallel for num_threads(threads)
+    for (size_t i = 0; i < n; i++) {
+        ret[i] = 0;
+        double max_prob = probs[i * c];
+        for (size_t j = 1; j < c; j++) {
+            if (max_prob < probs[i * c + j]) {
+                ret[i] = (int64_t)j;
+                max_prob = probs[i * c + j];
+            }
+        }
+    }
 
-    // free(probs);
+    free(probs);
     return ret;
 }
 
