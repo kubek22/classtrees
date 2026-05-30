@@ -1,12 +1,18 @@
 #include "tree.h"
 #include "assert.h"
 #include "random.h"
+#include <omp.h>
 
 
 // TODO repeated with tree.c
 #define MAX(A, B) (((A)>(B))?(A):(B))
 #define MIN(A, B) (((A)<(B))?(A):(B))
 
+
+static int get_num_threads(int n_jobs) {
+    if (n_jobs == -1) return omp_get_max_threads();
+    else return MAX(1, MIN(n_jobs, omp_get_max_threads()));
+}
 
 static void bootstrap_sample(const double* X, const int64_t* y, size_t n, size_t p,
     pcg32_random_t* rng, double** new_X, size_t** new_y)
@@ -56,8 +62,11 @@ void rf_fit(Node** roots, size_t n_estimators, const double* X, const int64_t* y
     ASSERT(n_jobs == -1 || n_jobs > 0);
 
 
+    int threads = get_num_threads(n_jobs);
+
     // iterate over estimators
     // TODO use n_jobs
+    #pragma omp parallel for num_threads(threads)
     for (size_t i = 0; i < n_estimators; i++) {
         // generate bootstrap sample
         double* X_boot;
@@ -109,10 +118,13 @@ int64_t* rf_predict(Node** roots, size_t n_estimators, const double* X,
 
     int64_t* ret = (int64_t*)malloc(n * sizeof(int64_t));
     if (!ret) {
-        // free(probs);
+        free(probs);
         return NULL;
     }
 
+    int threads = get_num_threads(n_jobs);
+
+    #pragma omp parallel for num_threads(threads)
     for (size_t i = 0; i < n; i++) {
         ret[i] = 0;
         double max_prob = probs[i * c];
