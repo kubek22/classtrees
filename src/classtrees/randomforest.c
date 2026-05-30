@@ -1,18 +1,12 @@
 #include "tree.h"
 #include "assert.h"
 #include "random.h"
-#include <omp.h>
 
 
 // TODO repeated with tree.c
 #define MAX(A, B) (((A)>(B))?(A):(B))
 #define MIN(A, B) (((A)<(B))?(A):(B))
 
-
-static int get_num_threads(int n_jobs) {
-    if (n_jobs == -1) return omp_get_max_threads();
-    else return MAX(1, MIN(n_jobs, omp_get_max_threads()));
-}
 
 static void bootstrap_sample(const double* X, const int64_t* y, size_t n, size_t p,
     pcg32_random_t* rng, double** new_X, size_t** new_y)
@@ -61,8 +55,6 @@ void rf_fit(Node** roots, size_t n_estimators, const double* X, const int64_t* y
     ASSERT(rngs);
     ASSERT(n_jobs == -1 || n_jobs > 0);
 
-
-    int threads = get_num_threads(n_jobs);
 
     // iterate over estimators
     // TODO use n_jobs
@@ -120,8 +112,6 @@ int64_t* rf_predict(Node** roots, size_t n_estimators, const double* X,
         // free(probs);
         return NULL;
     }
-
-    int threads = get_num_threads(n_jobs);
 
     for (size_t i = 0; i < n; i++) {
         ret[i] = 0;

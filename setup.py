@@ -9,8 +9,7 @@ ext_modules = [
                  "src/classtrees/randomforest.c",
                  "src/classtrees/checks.c",],
         include_dirs=[numpy.get_include(), "src/classtrees"],
-        extra_compile_args=["-O3", "-DNDEBUG", "-fopenmp"],
-        extra_link_args=["-fopenmp"]
+        extra_compile_args=["-O3", "-DNDEBUG"],
     )
 ]
 
