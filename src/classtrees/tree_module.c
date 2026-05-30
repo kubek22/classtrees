@@ -374,6 +374,7 @@ static PyObject* rffit(PyForest* self, PyObject* args) {
 
     double* X_data = (double*)PyArray_DATA(X);
 
+    // we do not cast to size_t for Random Forest (we do it for now just to get the number of classes)
     int64_t* y_data = (int64_t*)PyArray_DATA(y);
 
     size_t* y_conv = malloc(n * sizeof(size_t));
@@ -396,7 +397,7 @@ static PyObject* rffit(PyForest* self, PyObject* args) {
     self->roots = (Node**)malloc(self->n_estimators * sizeof(Node*));
     for (size_t i = 0; i < self->n_estimators; i++) self->roots[i] = NULL;
 
-    rf_fit(self->roots, self->n_estimators, X_data, y_conv,
+    rf_fit(self->roots, self->n_estimators, X_data, y_data,
         n, self->n_features, self->n_classes, self->impurity_func, self->max_height,
         self->min_samples_split, self->min_samples_leaf, self->max_features,
         self->rngs, self->n_jobs
