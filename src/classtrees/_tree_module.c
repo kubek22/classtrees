@@ -12,6 +12,7 @@
 #include "tree.h"
 #include "random.h"
 #include "checks.h"
+#include "pyobjects.h"
 #include "randomforest.h"
 
 #include <numpy/arrayobject.h>

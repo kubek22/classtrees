@@ -37,3 +37,6 @@ import os
 import sys
 
 sys.path.insert(0, os.path.abspath("../../src"))
+
+# run from docs:
+# sphinx-build -b html source build/html
