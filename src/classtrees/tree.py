@@ -1,17 +1,55 @@
 from classtrees.tree_module import PyTree
 
-# python class that wraps the PyTree class and provides a scikit-learn-like interface
-
 class ClassTree:
+    """
+    Decision tree classifier.
+
+    The classifier recursively partitions the feature space and assigns a
+    class label to each terminal node (leaf). Splits are selected according
+    to the specified impurity criterion.
+
+    Parameters
+    ----------
+    impurity : {'gini', 'entropy'}, default='gini'
+        Impurity criterion used to evaluate candidate splits.
+
+        - ``'gini'``: Gini impurity.
+        - ``'entropy'``: entropy.
+
+    max_height : int or None, default=None
+        Maximum height of the tree. The minimal value is 0, then only a root note is created.
+        If ``None``, nodes are expanded until no further valid splits can be made.
+
+    min_samples_split : int, default=2
+        Minimum number of samples required to split a node.
+        Must be at least 2.
+
+    min_samples_leaf : int, default=1
+        Minimum number of samples required in each leaf node.
+
+    max_features : int or None, default=None
+        Number of features considered when searching for the best split.
+        If ``None``, all features are considered.
+
+    random_state : int or None, default=None
+        Seed used by the random number generator. If ``None``, an
+        seed is set based on current timestamp.
+
+    Notes
+    -----
+    Input features are expected to be provided as a two-dimensional
+    ``numpy.ndarray`` of floating-point values. Target labels should be
+    provided as a one-dimensional integer array.
+
+    Examples
+    --------
+    >>> clf = ClassTree(max_height=3, random_state=42)
+    >>> clf.fit(X_train, y_train)
+    >>> y_pred = clf.predict(X_test)
+    """
+
     def __init__(self, impurity="gini", max_height=None, min_samples_split=2,
                  min_samples_leaf=1, max_features=None, random_state=None):
-        """
-        max_height: int or None, default=None
-        min_samples_split: int or float, default=2
-        min_samples_leaf: int or float, default=1
-        max_features: int or float or None, default=None
-        random_state: int or None, default=None
-        """
         self._tree = PyTree(
             impurity=impurity,
             max_height=max_height,
@@ -22,10 +60,76 @@ class ClassTree:
         )
 
     def fit(self, X, y):
+        """
+        Build a decision tree classifier from training data.
+
+        Parameters
+        ----------
+        X : ndarray of shape (n_samples, n_features)
+            Training feature matrix. Must contain numeric values.
+
+        y : ndarray of shape (n_samples,)
+            Target class labels encoded as integers.
+
+        Returns
+        -------
+        ClassTree
+            Fitted classifier.
+
+        Notes
+        -----
+        The number of samples in ``X`` and ``y`` must match.
+
+        Examples
+        --------
+        >>> clf = ClassTree()
+        >>> clf.fit(X, y)
+        """
+
         return self._tree.fit(X, y)
 
     def predict(self, X):
+        """
+        Predict class labels for samples in ``X``.
+
+        Parameters
+        ----------
+        X : ndarray of shape (n_samples, n_features)
+            Input samples for which predictions are requested.
+
+        Returns
+        -------
+        ndarray of shape (n_samples,)
+            Predicted class labels.
+
+        Examples
+        --------
+        >>> y_pred = clf.predict(X_test)
+        """
+
+        # X like in fit
         return self._tree.predict(X)
 
     def predict_proba(self, X):
+        """
+        Predict class probabilities for samples in ``X``.
+
+        Parameters
+        ----------
+        X : ndarray of shape (n_samples, n_features)
+            Input samples.
+
+        Returns
+        -------
+        ndarray of shape (n_samples, n_classes)
+            Predicted class probabilities. Each row contains the probability
+            estimates for all classes and sums to 1.
+
+        Examples
+        --------
+        >>> proba = clf.predict_proba(X_test)
+        >>> proba.shape
+        (n_samples, n_classes)
+        """
+        
         return self._tree.predict_proba(X)

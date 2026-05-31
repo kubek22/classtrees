@@ -13,10 +13,7 @@ name = "classtrees"
 version = "1.1.0"
 requires-python = ">=3.10"
 authors = [
-  {name = "Abc Def", email = "abc@def.com"}
-]
-maintainers = [
-  {name = "Abc Def", email = "abc@def.com"}
+  {name = "Jakub Sawicki"}
 ]
 description = "Python package implementing classification trees."
 readme = "README.md"
