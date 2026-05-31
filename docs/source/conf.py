@@ -23,7 +23,7 @@ extensions = [
 templates_path = ['_templates']
 exclude_patterns = []
 
-autodoc_mock_imports = ["classtrees.tree_module"]
+autodoc_mock_imports = ["classtrees._tree_module"]
 
 
 # -- Options for HTML output -------------------------------------------------

@@ -1,4 +1,4 @@
-from classtrees.tree_module import PyTree
+from classtrees._tree_module import PyTree
 
 class ClassTree:
     """

@@ -3,8 +3,8 @@ import numpy
 
 ext_modules = [
     Extension(
-        "classtrees.tree_module",
-        sources=["src/classtrees/tree_module.c",
+        "classtrees._tree_module",
+        sources=["src/classtrees/_tree_module.c",
                  "src/classtrees/tree.c",
                  "src/classtrees/randomforest.c",
                  "src/classtrees/checks.c",],

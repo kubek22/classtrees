@@ -700,13 +700,13 @@ static PyTypeObject PyForestType = {
 // Python module definition (just once)
 static PyModuleDef tree_module_def = {
     PyModuleDef_HEAD_INIT,
-    "tree_module",
+    "_tree_module",
     "C tree module",
     -1,
     NULL
 };
 
-PyMODINIT_FUNC PyInit_tree_module(void) {
+PyMODINIT_FUNC PyInit__tree_module(void) {
     import_array();  // NumPy init MUST be here
 
     // tree

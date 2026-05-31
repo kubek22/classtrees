@@ -1,4 +1,4 @@
-from classtrees.tree_module import PyForest
+from classtrees._tree_module import PyForest
 
 
 class RandomForest:
