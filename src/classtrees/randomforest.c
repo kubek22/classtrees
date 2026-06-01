@@ -89,14 +89,14 @@ double* rf_predict_proba(Node** roots, size_t n_estimators, const double* X,
     if (!ret) return NULL;
     for (size_t i = 0; i < n * c; i++) ret[i] = 0.0;
 
+    int threads = get_num_threads(n_jobs);
+
+    // iterate over estimators
+    #pragma omp parallel for num_threads(threads)
     for (size_t i = 0; i < n; i++) {
         for (size_t j = 0; j < n_estimators; j++) {
             // it returnes only a pointer to leaf probs, it should not be freed
             double* x_probs = predict_proba_one(roots[j], &X[i * p]);
-            if (!x_probs) {
-                free(ret);
-                return NULL;
-            }
             for (size_t k = 0; k < c; k++) {
                 ret[i * c + k] += x_probs[k];
             }
