@@ -102,11 +102,11 @@ def test_random_state_none_differs():
     X, y = make_data(42)
 
     trees = []
-    trees.append(ClassTree(random_state=None, max_height=1))
+    trees.append(ClassTree(random_state=None, max_height=1, max_features=3))
     time.sleep(2)
-    trees.append(ClassTree(random_state=None, max_height=1))
+    trees.append(ClassTree(random_state=None, max_height=1, max_features=3))
     time.sleep(2)
-    trees.append(ClassTree(random_state=None, max_height=1))
+    trees.append(ClassTree(random_state=None, max_height=1, max_features=3))
 
     for t in trees:
         t.fit(X, y)

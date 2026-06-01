@@ -102,11 +102,11 @@ def test_random_state_none_differs():
     X, y = make_data(42)
 
     rfs = []
-    rfs.append(RandomForest(n_estimators=2, random_state=None, max_height=1))
+    rfs.append(RandomForest(n_estimators=2, random_state=None, max_height=1, max_features=3))
     time.sleep(2)
-    rfs.append(RandomForest(n_estimators=2, random_state=None, max_height=1))
+    rfs.append(RandomForest(n_estimators=2, random_state=None, max_height=1, max_features=3))
     time.sleep(2)
-    rfs.append(RandomForest(n_estimators=2, random_state=None, max_height=1))
+    rfs.append(RandomForest(n_estimators=2, random_state=None, max_height=1, max_features=3))
 
     for m in rfs:
         m.fit(X, y)

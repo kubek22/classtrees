@@ -198,7 +198,7 @@ static double** generate_X(size_t n, size_t p) {
 
 // for testing
 static size_t* generate_y(double * const * X, size_t n, size_t p, size_t c) {
-    ASSERT(X); // maybe assert also X[i]?
+    ASSERT(X);
     ASSERT(n > 0);
     ASSERT(p > 0);
     ASSERT(c > 0);
@@ -241,7 +241,7 @@ static void free_X(double** X, size_t n) {
     free(X);
 }
 
-static size_t partition(double* feat, size_t* indexes, size_t start_idx, size_t end_idx, double t) {
+static size_t partition(double* feat, size_t* indexes, size_t start_idx, size_t end_idx, double t, size_t feat_base_idx) {
     // p is the number of features
     // modifies indexes within range [start_idx, end_idx) so that values X[:][feature] < t in the analyzed range will be located before elements >= t
     // returns the first index of an element >= t
@@ -260,19 +260,19 @@ static size_t partition(double* feat, size_t* indexes, size_t start_idx, size_t 
 
     while (i < j) {
         // searching for missplaced elements
-        while (i < j && feat[i - start_idx] < t)
+        while (i < j && feat[i - feat_base_idx] < t)
             i++;
         // dangerous - it may underflow
-        while (i < j && feat[j - 1 - start_idx] >= t)
+        while (i < j && feat[j - 1 - feat_base_idx] >= t)
             j--;
         // swapping the elements
         if (i < j) {
             size_t tmp = indexes[i];
             indexes[i] = indexes[j - 1];
             indexes[j - 1] = tmp;
-            double tmp_val = feat[i - start_idx];
-            feat[i - start_idx] = feat[j - 1 - start_idx];
-            feat[j - 1 - start_idx] = tmp_val;
+            double tmp_val = feat[i - feat_base_idx];
+            feat[i - feat_base_idx] = feat[j - 1 - feat_base_idx];
+            feat[j - 1 - feat_base_idx] = tmp_val;
             // moving forward
             ++i;
             --j;
@@ -281,7 +281,7 @@ static size_t partition(double* feat, size_t* indexes, size_t start_idx, size_t 
     return i;
 }
 
-static size_t partition_quicksort(double* feat, size_t* indexes, size_t start_idx, size_t end_idx, size_t p_index) {
+static size_t partition_quicksort(double* feat, size_t* indexes, size_t start_idx, size_t end_idx, size_t p_index, size_t feat_base_idx) {
     // Require non-empty range
     // Require start_idx <= p_index < end_idx
     ASSERT(feat);
@@ -289,30 +289,30 @@ static size_t partition_quicksort(double* feat, size_t* indexes, size_t start_id
     ASSERT(end_idx > start_idx);
     ASSERT(p_index >= start_idx && p_index < end_idx);
 
-    double pivot = feat[p_index - start_idx];
+    double pivot = feat[p_index - feat_base_idx];
 
     // Move pivot to the end
     size_t pivot_idx = indexes[p_index];
     indexes[p_index] = indexes[end_idx - 1];
     indexes[end_idx - 1] = pivot_idx;
 
-    feat[p_index - start_idx] = feat[end_idx - 1 - start_idx];
-    feat[end_idx - 1 - start_idx] = pivot;
+    feat[p_index - feat_base_idx] = feat[end_idx - 1 - feat_base_idx];
+    feat[end_idx - 1 - feat_base_idx] = pivot;
 
     // Partition excluding pivot
-    size_t mid = partition(feat, indexes, start_idx, end_idx - 1, pivot);
+    size_t mid = partition(feat, indexes, start_idx, end_idx - 1, pivot, feat_base_idx);
 
     // Move pivot into final place
     indexes[end_idx - 1] = indexes[mid];
     indexes[mid] = pivot_idx;
 
-    feat[end_idx - 1- start_idx] = feat[mid - start_idx];
-    feat[mid - start_idx] = pivot;
+    feat[end_idx - 1 - feat_base_idx] = feat[mid - feat_base_idx];
+    feat[mid - feat_base_idx] = pivot;
 
     return mid;
 }
 
-static size_t pivot_idx(const double* feat, size_t* indexes, size_t start_idx, size_t end_idx) {
+static size_t pivot_idx(const double* feat, size_t* indexes, size_t start_idx, size_t end_idx, size_t feat_base_idx) {
     ASSERT(feat);
     ASSERT(indexes);
     ASSERT(start_idx < end_idx);
@@ -320,9 +320,9 @@ static size_t pivot_idx(const double* feat, size_t* indexes, size_t start_idx, s
     // selects 3 elements and chooses a median from them
     size_t mid = start_idx + (end_idx - start_idx) / 2;
 
-    double a = feat[start_idx - start_idx];
-    double b = feat[mid - start_idx];
-    double c = feat[end_idx - 1 - start_idx];
+    double a = feat[start_idx - feat_base_idx];
+    double b = feat[mid - feat_base_idx];
+    double c = feat[end_idx - 1 - feat_base_idx];
 
     if ((a <= b && b <= c) || (c <= b && b <= a))
         return mid;
@@ -331,27 +331,27 @@ static size_t pivot_idx(const double* feat, size_t* indexes, size_t start_idx, s
     return end_idx - 1;
 }
 
-static void insertion_argsort(double* feat, size_t* indexes, size_t start_idx, size_t end_idx) {
+static void insertion_argsort(double* feat, size_t* indexes, size_t start_idx, size_t end_idx, size_t feat_base_idx) {
     ASSERT(feat);
     ASSERT(indexes);
 
     for (size_t i = start_idx + 1; i < end_idx; i++) {
         size_t idx = indexes[i];
-        double t = feat[i - start_idx];
+        double t = feat[i - feat_base_idx];
         size_t j = i;
 
-        while (j > start_idx && feat[j - 1 - start_idx] > t) {
+        while (j > start_idx && feat[j - 1 - feat_base_idx] > t) {
             indexes[j] = indexes[j - 1];
-            feat[j - start_idx] = feat[j - 1 - start_idx];
+            feat[j - feat_base_idx] = feat[j - 1 - feat_base_idx];
             j--;
         }
 
         indexes[j] = idx;
-        feat[j - start_idx] = t;
+        feat[j - feat_base_idx] = t;
     }
 }
 
-static void argsort(double* feat, size_t* indexes, size_t start_idx, size_t end_idx) {
+static void argsort(double* feat, size_t* indexes, size_t start_idx, size_t end_idx, size_t feat_base_idx) {
     // gets X matrix as input, considers only given features and applies argsort on indexes array within given range
     // modifies indexes inplace
     // quicksort + insertion sort
@@ -363,15 +363,15 @@ static void argsort(double* feat, size_t* indexes, size_t start_idx, size_t end_
     size_t n = end_idx - start_idx;
     while (n > 1) {
         // run insertion sort for small arrays
-        if (n < QUICKSORT_NMIN) return insertion_argsort(feat, indexes, start_idx, end_idx);
-        size_t p_index = pivot_idx(feat, indexes, start_idx, end_idx);
-        size_t mid_idx = partition_quicksort(feat, indexes, start_idx, end_idx, p_index);
+        if (n < QUICKSORT_NMIN) return insertion_argsort(feat, indexes, start_idx, end_idx, feat_base_idx);
+        size_t p_index = pivot_idx(feat, indexes, start_idx, end_idx, feat_base_idx);
+        size_t mid_idx = partition_quicksort(feat, indexes, start_idx, end_idx, p_index, feat_base_idx);
         if (mid_idx - start_idx < n - mid_idx - 1) {
-            argsort(feat, indexes, start_idx, mid_idx);
+            argsort(feat, indexes, start_idx, mid_idx, feat_base_idx);
             start_idx = mid_idx + 1;
         }
         else {
-            argsort(feat, indexes, mid_idx + 1, end_idx);
+            argsort(feat, indexes, mid_idx + 1, end_idx, feat_base_idx);
             end_idx = mid_idx;
         }
         // update size
@@ -449,7 +449,7 @@ static void split(Node* node, const double* X, const size_t* y, size_t p, size_t
             feat[i] = X[indexes[start_idx + i] * p + feature];
 
         // sort values for the feature
-        argsort(feat, indexes, start_idx, end_idx);
+        argsort(feat, indexes, start_idx, end_idx, start_idx);
         
         // initially all elements are in the right subtree
         // possibly allocate this only once and just fill with zeros
@@ -503,10 +503,15 @@ static void split(Node* node, const double* X, const size_t* y, size_t p, size_t
     // freeing cached feature column
     free(shuffled_features.data);
 
+    if (best_score == INFINITY) {
+        free(feat);
+        return;
+    }
+
     // recomputing probs - partition will be faster than sorting
     for (size_t i = 0; i < n; i++)
         feat[i] = X[indexes[start_idx + i] * p + node->feature];
-    size_t mid_idx = partition(feat, indexes, start_idx, end_idx, node->threshold);
+    size_t mid_idx = partition(feat, indexes, start_idx, end_idx, node->threshold, start_idx);
     free(feat);
 
     // recompute probs
