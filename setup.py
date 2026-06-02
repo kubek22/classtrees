@@ -6,6 +6,7 @@ ext_modules = [
         "classtrees._tree_module",
         sources=["src/classtrees/_tree_module.c",
                  "src/classtrees/tree.c",
+                 "src/classtrees/tree_bootstrap.c",
                  "src/classtrees/randomforest.c",
                  "src/classtrees/checks.c",],
         include_dirs=[numpy.get_include(), "src/classtrees"],

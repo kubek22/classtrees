@@ -4,7 +4,7 @@
 
 #include "tree.h"
 
-void rf_fit(Node** roots, size_t n_estimators, const double* X, const int64_t* y,
+void rf_fit(Node** roots, size_t n_estimators, const double* X, const size_t* y,
     size_t n, size_t p, size_t c, impurity_func_t impurity_func, size_t max_height,
     size_t min_samples_split, size_t min_samples_leaf, size_t max_features,
     pcg32_random_t* rngs, int n_jobs);

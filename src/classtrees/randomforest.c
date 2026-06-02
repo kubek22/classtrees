@@ -1,7 +1,9 @@
 #include "tree.h"
+#include "tree_bootstrap.h"
 #include "assert.h"
 #include "random.h"
 #include <omp.h>
+#include <stdlib.h>
 
 
 // repeated with tree.c
@@ -14,33 +16,22 @@ static int get_num_threads(int n_jobs) {
     else return MAX(1, MIN(n_jobs, omp_get_max_threads()));
 }
 
-static void bootstrap_sample(const double* X, const int64_t* y, size_t n, size_t p,
-    pcg32_random_t* rng, double** new_X, size_t** new_y)
+static size_t* bootstrap_sample_indexes(size_t n, pcg32_random_t* rng)
 {
-    ASSERT(X);
-    ASSERT(y);
     ASSERT(n > 0);
-    ASSERT(p > 0);
     ASSERT(rng);
 
-    *new_X = (double*)malloc(n * p * sizeof(double));
-    *new_y = (size_t*)malloc(n * sizeof(size_t));
-
-    ASSERT(*new_X);
-    ASSERT(*new_y);
+    size_t* ret = (size_t*)malloc(n * sizeof(size_t));
+    ASSERT(ret);
 
     for (size_t i = 0; i < n; i++) {
-        size_t j = pcg32_random_r(rng) % n;
-
-        for (size_t k = 0; k < p; k++) {
-            (*new_X)[i * p + k] = X[j * p + k];
-        }
-
-        (*new_y)[i] = (size_t)y[j];
+        ret[i] = pcg32_random_r(rng) % n;
     }
+
+    return ret;
 }
 
-void rf_fit(Node** roots, size_t n_estimators, const double* X, const int64_t* y,
+void rf_fit(Node** roots, size_t n_estimators, const double* X, const size_t* y,
     size_t n, size_t p, size_t c, impurity_func_t impurity_func, size_t max_height,
     size_t min_samples_split, size_t min_samples_leaf, size_t max_features,
     pcg32_random_t* rngs, int n_jobs)
@@ -67,18 +58,15 @@ void rf_fit(Node** roots, size_t n_estimators, const double* X, const int64_t* y
     // iterate over estimators
     #pragma omp parallel for num_threads(threads)
     for (size_t i = 0; i < n_estimators; i++) {
-        // generate bootstrap sample
-        double* X_boot;
-        size_t* y_boot;
-        bootstrap_sample(X, y, n, p, &rngs[i], &X_boot, &y_boot);
+        // generate bootstrap sample positions into the original data
+        size_t* bootstrap_indexes = bootstrap_sample_indexes(n, &rngs[i]);
 
         // fit a tree (roots will be initialized here)
-        tree_fit(&roots[i], X_boot, y_boot, n, p, c, impurity_func,
+        tree_fit_bootstrap(&roots[i], X, y, bootstrap_indexes, n, p, c, impurity_func,
             max_height, min_samples_split, min_samples_leaf, max_features, &rngs[i]);
 
         // free the memory
-        free(X_boot);
-        free(y_boot);
+        free(bootstrap_indexes);
     }
 }
 
@@ -138,4 +126,3 @@ int64_t* rf_predict(Node** roots, size_t n_estimators, const double* X,
     free(probs);
     return ret;
 }
-
