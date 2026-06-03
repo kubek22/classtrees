@@ -30,20 +30,33 @@ static idx_array zeros_idx_array(size_t size) {
     return ret;
 }
 
-static idx_array get_counts_bootstrap(size_t c, const size_t* y, const size_t* bootstrap_indexes,
+static idx_array get_counts_bootstrap(size_t c, const size_t* y, const size_t* bootstrap_counts,
     size_t* indexes, size_t start_idx, size_t end_idx)
 {
     ASSERT(y);
-    ASSERT(bootstrap_indexes);
+    ASSERT(bootstrap_counts);
     ASSERT(indexes);
     ASSERT(end_idx - start_idx >= 1);
 
     idx_array ret = zeros_idx_array(c);
     for (size_t i = start_idx; i < end_idx; i++) {
-        size_t row = bootstrap_indexes[indexes[i]];
+        size_t row = indexes[i];
         size_t class = y[row];
         ASSERT(class < c);
-        ret.data[class]++;
+        ret.data[class] += bootstrap_counts[row];
+    }
+    return ret;
+}
+
+static size_t get_weight_bootstrap(const size_t* bootstrap_counts, size_t* indexes,
+    size_t start_idx, size_t end_idx)
+{
+    ASSERT(bootstrap_counts);
+    ASSERT(indexes);
+
+    size_t ret = 0;
+    for (size_t i = start_idx; i < end_idx; i++) {
+        ret += bootstrap_counts[indexes[i]];
     }
     return ret;
 }
@@ -206,7 +219,7 @@ static void shuffle_limit(size_t* array, size_t n, size_t limit, pcg32_random_t*
 }
 
 static void split_bootstrap(Node* node, const double* X, const size_t* y,
-    const size_t* bootstrap_indexes, size_t p, size_t c, size_t* indexes,
+    const size_t* bootstrap_counts, size_t p, size_t c, size_t* indexes,
     size_t start_idx, size_t end_idx, impurity_func_t impurity_func,
     size_t max_height, size_t min_samples_split, size_t min_samples_leaf,
     size_t max_features, pcg32_random_t* rng)
@@ -214,7 +227,7 @@ static void split_bootstrap(Node* node, const double* X, const size_t* y,
     ASSERT(node);
     ASSERT(X);
     ASSERT(y);
-    ASSERT(bootstrap_indexes);
+    ASSERT(bootstrap_counts);
     ASSERT(start_idx < end_idx);
     ASSERT(min_samples_leaf > 0);
     ASSERT(max_features > 0);
@@ -226,13 +239,17 @@ static void split_bootstrap(Node* node, const double* X, const size_t* y,
         return;
     if (node->h >= max_height)
         return;
-    if (end_idx - start_idx < min_samples_split)
+
+    size_t n = end_idx - start_idx;
+    size_t weighted_n = get_weight_bootstrap(bootstrap_counts, indexes, start_idx, end_idx);
+
+    if (weighted_n < min_samples_split)
         return;
-    if (2 * min_samples_leaf > end_idx - start_idx)
+    if (2 * min_samples_leaf > weighted_n)
         return;
 
     double best_score = INFINITY;
-    size_t n = end_idx - start_idx;
+
     double* feat = (double*)malloc(n * sizeof(double));
 
     size_t MAX_FEATURES = MAX(1, MIN(max_features, p));
@@ -243,33 +260,58 @@ static void split_bootstrap(Node* node, const double* X, const size_t* y,
         size_t feature = shuffled_features.data[feature_idx];
 
         for (size_t i = 0; i < n; i++) {
-            size_t row = bootstrap_indexes[indexes[start_idx + i]];
+            size_t row = indexes[start_idx + i];
             feat[i] = X[row * p + feature];
         }
 
         argsort(feat, indexes, start_idx, end_idx, start_idx);
 
         idx_array left_counts = zeros_idx_array(c);
-        idx_array right_counts = get_counts_bootstrap(c, y, bootstrap_indexes, indexes, start_idx, end_idx);
+        idx_array right_counts = get_counts_bootstrap(c, y, bootstrap_counts, indexes, start_idx, end_idx);
 
-        for (size_t i = 0; i < MIN(n - min_samples_leaf, n - 1); i++) {
-            size_t row = bootstrap_indexes[indexes[start_idx + i]];
+        size_t n_left = 0;
+        size_t n_right = weighted_n;
+
+        for (size_t i = 0; i < n - 1; i++) {
+            // accessing a row in the original data
+            size_t row = indexes[start_idx + i];
+
+            // accessing the count of this row in the bootstrap sample
+            size_t count = bootstrap_counts[row];
+
+            // skip if this row is not in the bootstrap sample
+            if (count == 0)
+                continue;
+
             size_t class = y[row];
-            left_counts.data[class]++;
-            right_counts.data[class]--;
+            left_counts.data[class] += count;
+            right_counts.data[class] -= count;
 
-            if (i + 1 < min_samples_leaf)
+            n_left += count;
+            n_right -= count;
+
+            if (n_left < min_samples_leaf)
+                continue;
+            
+            if (n_right < min_samples_leaf)
+                break;
+
+            size_t next_i = i + 1;
+            while (next_i < n && bootstrap_counts[indexes[start_idx + next_i]] == 0)
+                next_i++;
+
+            if (next_i == n)
+                break;
+
+            if (fabs(feat[next_i] - feat[i]) < 1e-12)
                 continue;
 
-            if (fabs(feat[i + 1] - feat[i]) < 1e-12)
-                continue;
+            double threshold = (feat[i] + feat[next_i]) * 0.5;
 
-            double threshold = (feat[i] + feat[i + 1]) * 0.5;
+            double impurity_left = impurity_func(left_counts, n_left);
+            double impurity_right = impurity_func(right_counts, n_right);
 
-            double impurity_left = impurity_func(left_counts, i + 1);
-            double impurity_right = impurity_func(right_counts, n - i - 1);
-
-            double p_left = (double)(i + 1) / n;
+            double p_left = (double)(n_left) / weighted_n;
             double p_right = 1.0 - p_left;
 
             double score = p_left * impurity_left + p_right * impurity_right;
@@ -293,20 +335,23 @@ static void split_bootstrap(Node* node, const double* X, const size_t* y,
     }
 
     for (size_t i = 0; i < n; i++) {
-        size_t row = bootstrap_indexes[indexes[start_idx + i]];
+        size_t row = indexes[start_idx + i];
         feat[i] = X[row * p + node->feature];
     }
     size_t mid_idx = partition(feat, indexes, start_idx, end_idx, node->threshold, start_idx);
     free(feat);
 
-    idx_array counts_left = get_counts_bootstrap(c, y, bootstrap_indexes, indexes, start_idx, mid_idx);
-    idx_array counts_right = get_counts_bootstrap(c, y, bootstrap_indexes, indexes, mid_idx, end_idx);
+    idx_array counts_left = get_counts_bootstrap(c, y, bootstrap_counts, indexes, start_idx, mid_idx);
+    idx_array counts_right = get_counts_bootstrap(c, y, bootstrap_counts, indexes, mid_idx, end_idx);
 
-    double impurity_left = impurity_func(counts_left, mid_idx - start_idx);
-    double impurity_right = impurity_func(counts_right, end_idx - mid_idx);
+    size_t weighted_n_left = get_weight_bootstrap(bootstrap_counts, indexes, start_idx, mid_idx);
+    size_t weighted_n_right = weighted_n - weighted_n_left;
 
-    double_array probs_left = get_probs_from_counts(counts_left, mid_idx - start_idx);
-    double_array probs_right = get_probs_from_counts(counts_right, end_idx - mid_idx);
+    double impurity_left = impurity_func(counts_left, weighted_n_left);
+    double impurity_right = impurity_func(counts_right, weighted_n_right);
+
+    double_array probs_left = get_probs_from_counts(counts_left, weighted_n_left);
+    double_array probs_right = get_probs_from_counts(counts_right, weighted_n_right);
 
     free(counts_left.data);
     free(counts_right.data);
@@ -314,34 +359,35 @@ static void split_bootstrap(Node* node, const double* X, const size_t* y,
     node->left = init_node(node->h + 1, &probs_left, impurity_left);
     node->right = init_node(node->h + 1, &probs_right, impurity_right);
 
-    split_bootstrap(node->left, X, y, bootstrap_indexes, p, c, indexes, start_idx, mid_idx,
+    split_bootstrap(node->left, X, y, bootstrap_counts, p, c, indexes, start_idx, mid_idx,
         impurity_func, max_height, min_samples_split, min_samples_leaf, max_features, rng);
-    split_bootstrap(node->right, X, y, bootstrap_indexes, p, c, indexes, mid_idx, end_idx,
+    split_bootstrap(node->right, X, y, bootstrap_counts, p, c, indexes, mid_idx, end_idx,
         impurity_func, max_height, min_samples_split, min_samples_leaf, max_features, rng);
 }
 
-void tree_fit_bootstrap(Node** root, const double* X, const size_t* y, const size_t* bootstrap_indexes,
+void tree_fit_bootstrap(Node** root, const double* X, const size_t* y, const size_t* bootstrap_counts,
     size_t n, size_t p, size_t c, impurity_func_t impurity_func, size_t max_height,
     size_t min_samples_split, size_t min_samples_leaf, size_t max_features, pcg32_random_t* rng)
 {
     ASSERT(root);
     ASSERT(X);
     ASSERT(y);
-    ASSERT(bootstrap_indexes);
+    ASSERT(bootstrap_counts);
     ASSERT(n > 0);
     ASSERT(p > 0);
     ASSERT(c > 0);
 
     idx_array indexes = init_indexes(n);
 
-    idx_array counts_root = get_counts_bootstrap(c, y, bootstrap_indexes, indexes.data, 0, n);
-    double_array probs_root = get_probs_from_counts(counts_root, n);
-    double impurity_root = impurity_func(counts_root, n);
+    idx_array counts_root = get_counts_bootstrap(c, y, bootstrap_counts, indexes.data, 0, n);
+    size_t weighted_n = get_weight_bootstrap(bootstrap_counts, indexes.data, 0, n);
+    double_array probs_root = get_probs_from_counts(counts_root, weighted_n);
+    double impurity_root = impurity_func(counts_root, weighted_n);
     free(counts_root.data);
 
     *root = init_node(0, &probs_root, impurity_root);
 
-    split_bootstrap(*root, X, y, bootstrap_indexes, p, c, indexes.data, 0, n,
+    split_bootstrap(*root, X, y, bootstrap_counts, p, c, indexes.data, 0, n,
         impurity_func, max_height, min_samples_split, min_samples_leaf, max_features, rng);
 
     free(indexes.data);

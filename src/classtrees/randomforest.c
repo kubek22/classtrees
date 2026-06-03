@@ -16,16 +16,18 @@ static int get_num_threads(int n_jobs) {
     else return MAX(1, MIN(n_jobs, omp_get_max_threads()));
 }
 
-static size_t* bootstrap_sample_indexes(size_t n, pcg32_random_t* rng)
+static size_t* bootstrap_sample_counts(size_t n, pcg32_random_t* rng)
 {
     ASSERT(n > 0);
     ASSERT(rng);
 
     size_t* ret = (size_t*)malloc(n * sizeof(size_t));
     ASSERT(ret);
+    for (size_t i = 0; i < n; i++) ret[i] = 0;
 
     for (size_t i = 0; i < n; i++) {
-        ret[i] = pcg32_random_r(rng) % n;
+        size_t idx = pcg32_random_r(rng) % n;
+        ret[idx]++;
     }
 
     return ret;
@@ -59,14 +61,14 @@ void rf_fit(Node** roots, size_t n_estimators, const double* X, const size_t* y,
     #pragma omp parallel for num_threads(threads)
     for (size_t i = 0; i < n_estimators; i++) {
         // generate bootstrap sample positions into the original data
-        size_t* bootstrap_indexes = bootstrap_sample_indexes(n, &rngs[i]);
+        size_t* bootstrap_counts = bootstrap_sample_counts(n, &rngs[i]);
 
         // fit a tree (roots will be initialized here)
-        tree_fit_bootstrap(&roots[i], X, y, bootstrap_indexes, n, p, c, impurity_func,
+        tree_fit_bootstrap(&roots[i], X, y, bootstrap_counts, n, p, c, impurity_func,
             max_height, min_samples_split, min_samples_leaf, max_features, &rngs[i]);
 
         // free the memory
-        free(bootstrap_indexes);
+        free(bootstrap_counts);
     }
 }
 
