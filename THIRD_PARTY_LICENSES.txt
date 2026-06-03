@@ -1,0 +1,4 @@
+PCG Random Number Generator (pcg32)
+Copyright (c) 2014 M.E. O'Neill
+Licensed under the Apache License 2.0
+https://www.pcg-random.org/
