@@ -21,7 +21,7 @@ typedef struct _array {
 typedef struct _Node {
     struct _Node* left;
     struct _Node* right;
-    size_t feature; // optionally an ordering of features to deal with NaNs
+    size_t feature;
     double threshold;
     size_t h; // height
     double_array probs; // node probabilities
@@ -39,6 +39,5 @@ void tree_fit(Node** root, const double* X, const size_t* y, size_t n, size_t p,
 int64_t * tree_predict(Node* root, const double* X, size_t n, size_t p);
 double* tree_predict_proba(Node* root, const double* X, size_t n, size_t p);
 double* predict_proba_one(Node* root, const double* x);
-
 
 #endif

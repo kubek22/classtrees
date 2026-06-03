@@ -20,12 +20,8 @@
 #include <numpy/arrayscalars.h>
 
 
-// file for binding C with Python
-// it should call only tree.c - algorithm implementation and do checks
-
 
 static PyObject* PyTree_new(PyTypeObject* type, PyObject* args, PyObject* kwds) {
-    // allocate memory for the object and initialize fields
     PyTree *self = (PyTree*)type->tp_alloc(type, 0);
     if (!self)
         return NULL;
@@ -46,7 +42,6 @@ static PyObject* PyTree_new(PyTypeObject* type, PyObject* args, PyObject* kwds) 
 }
 
 static PyObject* PyForest_new(PyTypeObject* type, PyObject* args, PyObject* kwds) {
-    // allocate memory for the object and initialize fields
     PyForest *self = (PyForest*)type->tp_alloc(type, 0);
     if (!self)
         return NULL;
@@ -68,7 +63,6 @@ static PyObject* PyForest_new(PyTypeObject* type, PyObject* args, PyObject* kwds
 }
 
 static int PyTree_init(PyTree* self, PyObject* args, PyObject* kwds) {
-    // NULL for required parameters, Py_None for optional parameters with None default
     PyObject* impurity_obj = NULL;
     PyObject* max_height_obj = NULL;
     PyObject* min_samples_split_obj = NULL;
@@ -137,10 +131,10 @@ static int PyTree_init(PyTree* self, PyObject* args, PyObject* kwds) {
     self->root = NULL;
 
     if (self->random_state < 0) {
-        // Seed with current time if no seed provided
+        // seed with current time if no seed provided
         self->rng.state = (uint64_t)time(NULL);
     } else {
-        // Seed with provided random_state
+        // seed with provided random_state
         self->rng.state = (uint64_t)self->random_state;
     }
     self->rng.inc = INC_DEFAULT; // fixed odd constant
@@ -152,7 +146,6 @@ static int PyTree_init(PyTree* self, PyObject* args, PyObject* kwds) {
 
 // rf
 static int PyForest_init(PyForest* self, PyObject* args, PyObject* kwds) {
-    // NULL for required parameters, Py_None for optional parameters with None default
     PyObject* n_estimators_obj = NULL;
     PyObject* impurity_obj = NULL;
     PyObject* max_height_obj = NULL;
@@ -237,10 +230,10 @@ static int PyForest_init(PyForest* self, PyObject* args, PyObject* kwds) {
 
     uint64_t initial_random_state;
     if (self->random_state < 0) {
-        // Seed with current time if no seed provided
+        // seed with current time if no seed provided
         initial_random_state = (uint64_t)time(NULL);
     } else {
-        // Seed with provided random_state
+        // seed with provided random_state
         initial_random_state = (uint64_t)self->random_state;
     }
 
@@ -393,7 +386,6 @@ static PyObject* rffit(PyForest* self, PyObject* args) {
     self->n_classes = get_classes(y_conv, n);
     self->n_features = p;
 
-    // we store a pointer to a list of pointers to Nodes
     self->roots = (Node**)malloc(self->n_estimators * sizeof(Node*));
     for (size_t i = 0; i < self->n_estimators; i++) self->roots[i] = NULL;
 
@@ -412,7 +404,6 @@ static PyObject* rffit(PyForest* self, PyObject* args) {
 }
 
 static PyObject* predict(PyTree* self, PyObject* args) {
-    // parse and check arguments, call tree_predict
     if (!require_fitted(self))
         return NULL;
 
@@ -471,7 +462,6 @@ static PyObject* predict(PyTree* self, PyObject* args) {
 }
 
 static PyObject* rfpredict(PyForest* self, PyObject* args) {
-    // parse and check arguments, call tree_predict
     if (!require_fitted_rf(self))
         return NULL;
 
@@ -529,7 +519,6 @@ static PyObject* rfpredict(PyForest* self, PyObject* args) {
 }
 
 static PyObject* predict_proba(PyTree* self, PyObject* args) {
-    // parse and check arguments, call tree_predict_proba
     if (!require_fitted(self))
         return NULL;
 
@@ -596,7 +585,6 @@ static PyObject* predict_proba(PyTree* self, PyObject* args) {
 }
 
 static PyObject* rfpredict_proba(PyForest* self, PyObject* args) {
-    // parse and check arguments, call tree_predict_proba
     if (!require_fitted_rf(self))
         return NULL;
 
@@ -697,7 +685,7 @@ static PyTypeObject PyForestType = {
 };
 
 
-// Python module definition (just once)
+// Python module definition
 static PyModuleDef tree_module_def = {
     PyModuleDef_HEAD_INIT,
     "_tree_module",
@@ -707,7 +695,7 @@ static PyModuleDef tree_module_def = {
 };
 
 PyMODINIT_FUNC PyInit__tree_module(void) {
-    import_array();  // NumPy init MUST be here
+    import_array();  // NumPy init
 
     // tree
     if (PyType_Ready(&PyTreeType) < 0)

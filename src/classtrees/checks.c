@@ -49,7 +49,7 @@ int parse_n_estimators(PyObject* obj, size_t* out) {
         return -1;
     }
 
-    // IMPORTANT: reject bool (bool is subclass of int)
+    // reject bool
     if (PyBool_Check(obj)) {
         PyErr_SetString(PyExc_TypeError,
                         "n_estimators must be int, not bool");
@@ -86,14 +86,12 @@ int parse_max_height(PyObject* obj, size_t* out) {
         return 0;
     }
 
-    // reject bool explicitly (critical)
     if (PyBool_Check(obj)) {
         PyErr_SetString(PyExc_TypeError,
                         "max_height must be int or None, not bool");
         return -1;
     }
 
-    // must be exact Python int
     if (!PyLong_Check(obj)) {
         PyErr_SetString(PyExc_TypeError,
                         "max_height must be int or None");
@@ -133,7 +131,7 @@ int parse_min_samples_split(PyObject* obj, size_t* out) {
         return -1;
     }
 
-    // direct conversion to size_t (correct API)
+    // direct conversion to size_t
     size_t value = PyLong_AsSize_t(obj);
 
     if (PyErr_Occurred())
@@ -157,7 +155,6 @@ int parse_min_samples_leaf(PyObject* obj, size_t* out) {
         return -1;
     }
 
-    // reject bool (bool is subclass of int)
     if (PyBool_Check(obj)) {
         PyErr_SetString(PyExc_TypeError,
                         "min_samples_leaf must be int, not bool");
@@ -193,14 +190,12 @@ int parse_max_features(PyObject* obj, size_t* out) {
         return 0;
     }
 
-    // reject bool
     if (PyBool_Check(obj)) {
         PyErr_SetString(PyExc_TypeError,
                         "max_features must be int or None");
         return -1;
     }
 
-    // only accept ints
     if (!PyLong_Check(obj)) {
         PyErr_SetString(PyExc_TypeError,
                         "max_features must be int or None");
@@ -304,7 +299,6 @@ int parse_n_jobs(PyObject* obj, int* out) {
         return -1;
     }
 
-    // safe cast (int is correct type here)
     *out = (int)value;
     return 0;
 }
@@ -324,8 +318,7 @@ int check_same_n(PyArrayObject* X, PyArrayObject* y) {
 }
 
 PyArrayObject* parse_X(PyObject* X_obj) {
-
-    // must be NumPy array already
+    // must be NumPy array
     if (!PyArray_Check(X_obj)) {
         PyErr_SetString(
             PyExc_TypeError,
@@ -431,7 +424,7 @@ PyArrayObject* parse_y(PyObject* y_obj) {
 
 // for tree
 int require_fitted(PyTree* self) {
-    // check if the tree is fitted (i.e. root is not NULL)
+    // check if the tree is fitted (root is not NULL)
     if (!self->root) {
         PyErr_SetString(PyExc_RuntimeError,
                         "The Tree is not fitted");
@@ -459,7 +452,6 @@ int require_fitted_rf(PyForest* self) {
         return 0;
     }
 
-    // optional stronger check: at least one tree exists
     for (size_t i = 0; i < self->n_estimators; i++) {
         if (self->roots[i] == NULL) {
             PyErr_SetString(PyExc_RuntimeError,

@@ -18,34 +18,6 @@
 #define MAX(A, B) (((A)>(B))?(A):(B))
 #define MIN(A, B) (((A)<(B))?(A):(B))
 
-// for testing
-static void print_double_array(double_array x) {
-    ASSERT(x.data);
-
-    printf("[");
-    for (size_t i = 0; i < x.size; i++) {
-        printf("%f, ", x.data[i]);
-    }
-    printf("]\n");
-}
-
-// used only for tests
-static size_t assert_arrays_equal(double_array x, double_array y) {
-    // for testing
-    ASSERT(x.data);
-    ASSERT(y.data);
-    if (x.size != y.size) return 1;
-    size_t error = 0;
-    for (size_t i = 0; i < x.size; i++) {
-        if (fabs(x.data[i] - y.data[i]) > 1e-12) {
-            print_double_array(x);
-            print_double_array(y);
-            printf("\n");
-            error = 1;
-        }
-    }
-    return error;
-}
 
 Node* init_node(size_t h, double_array* probs, double impurity) {
     Node* node = (Node*)malloc(sizeof(Node));
@@ -71,7 +43,6 @@ static idx_array init_indexes(size_t size) {
 
 size_t get_classes(size_t* y, size_t n) {
     // we assume, that the classes are represented as consecutive natural numbers from 0 to c-1
-    // we should maybe check first by an assert if there are at least 2 classes
     ASSERT(y);
     size_t ret = 0;
     for (size_t i = 0; i < n; i++)
@@ -182,73 +153,14 @@ double entropy_from_counts(idx_array counts, size_t n) {
     return ret;
 }
 
-// for testing
-static double** generate_X(size_t n, size_t p) {
-    ASSERT(n > 0);
-    ASSERT(p > 0);
-    double** X = (double**)malloc(n * sizeof(double*));
-    for (size_t i = 0; i < n; i++) {
-        X[i] = (double*)malloc(p * sizeof(double));
-        for (size_t j = 0; j < p; j++) {
-            X[i][j] = (double)rand() / RAND_MAX; // random values between 0 and 1
-        }
-    }
-    return X;
-}
-
-// for testing
-static size_t* generate_y(double * const * X, size_t n, size_t p, size_t c) {
-    ASSERT(X);
-    ASSERT(n > 0);
-    ASSERT(p > 0);
-    ASSERT(c > 0);
-
-    size_t* y = (size_t*)malloc(n * sizeof(size_t));
-    for (size_t i = 0; i < n; i++) {
-        double total = 0.0;
-        for (size_t j = 0; j < p; j++) {
-            total += X[i][j];
-        }
-        y[i] = (size_t)(total / p * c) % c;
-    }
-    return y;
-}
-
-// for testing
-static size_t* generate_binary_y(double * const *X, size_t n, size_t p) {
-    ASSERT(X);
-    ASSERT(n > 0);
-    ASSERT(p > 0);
-    size_t* y = malloc(n * sizeof(size_t));
-    for (size_t i = 0; i < n; ++i) {
-        double x0 = X[i][0 % p];
-        double x1 = X[i][1 % p];
-        double x2 = X[i][2 % p];
-        if (x0 < 0.5) {
-            y[i] = (x1 < 0.5) ? 0 : 1;
-        } else {
-            y[i] = (x2 < 0.5) ? 1 : 0;
-        }
-    }
-    return y;
-}
-
-// for testing
-static void free_X(double** X, size_t n) {
-    for (size_t i = 0; i < n; i++) {
-        free(X[i]);
-    }
-    free(X);
-}
 
 static size_t partition(double* feat, size_t* indexes, size_t start_idx, size_t end_idx, double t, size_t feat_base_idx) {
-    // p is the number of features
     // modifies indexes within range [start_idx, end_idx) so that values X[:][feature] < t in the analyzed range will be located before elements >= t
     // returns the first index of an element >= t
     // t threshold does not need to be present in the data
-    // the algorithm guarantees only to place elements <t first and >=t later
+    // the algorithm guarantees only placing elements <t first and >=t later
     // it does not guarantee shrinkage of the problem so cannot be applied for quicksort
-    // it t is greater than all values, end_idx is returned
+    // if t is greater than all values, end_idx is returned
 
     ASSERT(feat);
     ASSERT(indexes);
@@ -262,7 +174,6 @@ static size_t partition(double* feat, size_t* indexes, size_t start_idx, size_t 
         // searching for missplaced elements
         while (i < j && feat[i - feat_base_idx] < t)
             i++;
-        // dangerous - it may underflow
         while (i < j && feat[j - 1 - feat_base_idx] >= t)
             j--;
         // swapping the elements
@@ -282,8 +193,6 @@ static size_t partition(double* feat, size_t* indexes, size_t start_idx, size_t 
 }
 
 static size_t partition_quicksort(double* feat, size_t* indexes, size_t start_idx, size_t end_idx, size_t p_index, size_t feat_base_idx) {
-    // Require non-empty range
-    // Require start_idx <= p_index < end_idx
     ASSERT(feat);
     ASSERT(indexes);
     ASSERT(end_idx > start_idx);
@@ -291,7 +200,7 @@ static size_t partition_quicksort(double* feat, size_t* indexes, size_t start_id
 
     double pivot = feat[p_index - feat_base_idx];
 
-    // Move pivot to the end
+    // move pivot to the end
     size_t pivot_idx = indexes[p_index];
     indexes[p_index] = indexes[end_idx - 1];
     indexes[end_idx - 1] = pivot_idx;
@@ -299,10 +208,10 @@ static size_t partition_quicksort(double* feat, size_t* indexes, size_t start_id
     feat[p_index - feat_base_idx] = feat[end_idx - 1 - feat_base_idx];
     feat[end_idx - 1 - feat_base_idx] = pivot;
 
-    // Partition excluding pivot
+    // partition excluding pivot
     size_t mid = partition(feat, indexes, start_idx, end_idx - 1, pivot, feat_base_idx);
 
-    // Move pivot into final place
+    // move pivot into final place
     indexes[end_idx - 1] = indexes[mid];
     indexes[mid] = pivot_idx;
 
@@ -352,7 +261,7 @@ static void insertion_argsort(double* feat, size_t* indexes, size_t start_idx, s
 }
 
 static void argsort(double* feat, size_t* indexes, size_t start_idx, size_t end_idx, size_t feat_base_idx) {
-    // gets X matrix as input, considers only given features and applies argsort on indexes array within given range
+    // gets X matrix as input, considers only the given feature and applies argsort on indexes array within given range
     // modifies indexes inplace
     // quicksort + insertion sort
 
@@ -385,7 +294,6 @@ static void shuffle_limit(size_t* array, size_t n, size_t limit, pcg32_random_t*
     ASSERT(n > 0);
     ASSERT(limit <= n);
     for (size_t i = 0; i < limit; i++) {
-        // possibly think about more uniform shuffling
         size_t j = i + pcg32_random_r(rng) % (n - i);
         size_t tmp = array[i];
         array[i] = array[j];
@@ -413,16 +321,16 @@ static void split(Node* node, const double* X, const size_t* y, size_t p, size_t
     // we need at least two samples to make a split
     if (end_idx - start_idx < 2)
         return;
-    // for impurity 0, we dont split anymore - parametrize later
+    // for impurity 0, we dont split anymore
     if (node->impurity < 1e-12)
         return;
-    // max height
+    // max height check
     if (node->h >= max_height)
         return;
     // minimal number of samples to split a leaf
     if (end_idx - start_idx < min_samples_split)
         return;
-    // we need to have at least min_samples_leaf samples in each leaf - otherwise we cannot split
+    // we need to have at least min_samples_leaf samples in each leaf
     if (2 * min_samples_leaf > end_idx - start_idx)
         return;
 
@@ -431,7 +339,7 @@ static void split(Node* node, const double* X, const size_t* y, size_t p, size_t
     double best_score = INFINITY;
     size_t n = end_idx - start_idx; // number of observations in a node
 
-    // caching of feature column - it will be used for partitioning and sorting
+    // caching one feature column - it will be used for partitioning and sorting
     double* feat = malloc(n * sizeof(double));
 
     // shuffle features
@@ -440,7 +348,7 @@ static void split(Node* node, const double* X, const size_t* y, size_t p, size_t
     shuffle_limit(shuffled_features.data, shuffled_features.size, MAX_FEATURES, rng);
 
     // for each feature
-    // condifer only max features
+    // consider only max features
     for (size_t feature_idx = 0; feature_idx < MAX_FEATURES; feature_idx++) {
         size_t feature = shuffled_features.data[feature_idx];
 
@@ -452,7 +360,6 @@ static void split(Node* node, const double* X, const size_t* y, size_t p, size_t
         argsort(feat, indexes, start_idx, end_idx, start_idx);
         
         // initially all elements are in the right subtree
-        // possibly allocate this only once and just fill with zeros
         idx_array left_counts = zeros_idx_array(c);
         idx_array right_counts = get_counts(c, y, indexes, start_idx, end_idx);
 
@@ -485,7 +392,6 @@ static void split(Node* node, const double* X, const size_t* y, size_t p, size_t
 
             // overwrite the best results if needed
             double score = p_left * impurity_left + p_right * impurity_right;
-
             if (best_score > score) {
                 best_score = score;
                 // set the best feature and threshold
@@ -493,13 +399,10 @@ static void split(Node* node, const double* X, const size_t* y, size_t p, size_t
                 node->threshold = threshold;
             }
         }
-        // we already chose the best threshold for given feature
-
         // freeing counts
         free(left_counts.data);
         free(right_counts.data);
     }
-    // we already chose the best feature and threshold
     // freeing cached feature column
     free(shuffled_features.data);
 
@@ -532,15 +435,13 @@ static void split(Node* node, const double* X, const size_t* y, size_t p, size_t
     node->left = init_node(node->h+1, &probs_left, impurity_left);
     node->right = init_node(node->h+1, &probs_right, impurity_right);
 
-    // recurentially build the tree
-    // maybe start from the subtree with smaller number of observations
+    // recursively build the tree
     split(node->left, X, y, p, c, indexes, start_idx, mid_idx, impurity_func,
         max_height, min_samples_split, min_samples_leaf, max_features, rng);
     split(node->right, X, y, p, c, indexes, mid_idx, end_idx, impurity_func,
         max_height, min_samples_split, min_samples_leaf, max_features, rng);
 }
 
-// check if it will be needed
 void free_tree(Node* root) {
     if (!root) return;
     if (root->left) free_tree(root->left);
@@ -554,19 +455,16 @@ void free_tree(Node* root) {
 double* predict_proba_one(Node* root, const double* x) {
     // predicts a class for only one observation
     
-    // sanity check
     ASSERT(root);
     ASSERT(x);
     
     // going down to a leaf
     while (root->left || root->right) {
-        // it may be dangerous when we try to access non-existing feature -> should be checked at the beginning
         if (x[root->feature] < root->threshold)
             root = root->left;
         else
             root = root->right;
     }
-    
     ASSERT(root->probs.data);
     ASSERT(root->probs.size > 0);
 
@@ -587,11 +485,9 @@ double* tree_predict_proba(Node* root, const double* X, size_t n, size_t p) {
     return ret;
 }
 
-// it works only for C contiguous arrays
 static int64_t predict_one(Node* root, const double* x) {
     // predicts a class for only one observation
     
-    // sanity check
     ASSERT(root);
     ASSERT(x);
 
@@ -618,88 +514,13 @@ int64_t* tree_predict(Node* root, const double* X, size_t n, size_t p) {
     return ret;
 }
 
-// for tests
-static double* c_contiguous_array(double * const * X, size_t n, size_t p) {
-    double* ret = (double*)malloc(n * p * sizeof(double));
-    for (size_t i = 0; i < n; i++) {
-        for (size_t j = 0; j < p; j++) {
-            ret[i * p + j] = X[i][j];
-        }
-    }
-    return ret;
-}
-
-// for tests
-static double accuracy(const size_t* y_true, const size_t* y_pred, size_t n) {
-    ASSERT(y_true);
-    ASSERT(y_pred);
-    ASSERT(n > 0);
-
-    size_t correct = 0;
-    for (size_t i = 0; i < n; i++) {
-        if (y_true[i] == y_pred[i])
-            correct++;
-    }
-    return ((double)correct) / n;
-}
-
-
-
-// ----- DEBUG -----
-
-static void print_indent(size_t depth) {
-    for (size_t i = 0; i < depth; ++i)
-        printf("  ");
-}
-
-// for tests
-static void inspect_tree_node(const Node* node, size_t depth) {
-    if (!node) {
-        print_indent(depth);
-        printf("NULL node\n");
-        return;
-    }
-
-    print_indent(depth);
-
-    // leaf detection
-    int is_leaf = (node->left == NULL && node->right == NULL);
-
-    if (is_leaf) {
-        printf("[LEAF] impurity=%.6f probs=(", node->impurity);
-        for (size_t i = 0; i < node->probs.size; ++i) {
-            printf("%.3f", node->probs.data[i]);
-            if (i + 1 < node->probs.size)
-                printf(", ");
-        }
-        printf(")\n");
-        return;
-    }
-
-    printf("[NODE] feature=%zu threshold=%.6f impurity=%.6f probs=(",
-           node->feature,
-           node->threshold,
-           node->impurity);
-
-    for (size_t i = 0; i < node->probs.size; ++i) {
-        printf("%.3f", node->probs.data[i]);
-        if (i + 1 < node->probs.size)
-            printf(", ");
-    }
-    printf(")\n");
-
-    inspect_tree_node(node->left, depth + 1);
-    inspect_tree_node(node->right, depth + 1);
-}
-
-
 void tree_fit(Node** root, const double* X, const size_t* y, size_t n, size_t p, size_t c,
     impurity_func_t impurity_func, size_t max_height, size_t min_samples_split, size_t min_samples_leaf,
     size_t max_features, pcg32_random_t* rng) {
     // init indexes
-    idx_array indexes = init_indexes(n); // maybe change the method to return just the array
+    idx_array indexes = init_indexes(n);
 
-    // initialize root
+    // initialize the root
     idx_array counts_root = get_counts(c, y, indexes.data, 0, n);
     double_array probs_root = get_probs_from_counts(counts_root, n);
     double impurity_root = impurity_func(counts_root, n);
@@ -713,95 +534,3 @@ void tree_fit(Node** root, const double* X, const size_t* y, size_t n, size_t p,
     // free memory
     free(indexes.data);
 }
-
-// for tests
-static void tree_test() {
-    // random seed
-    // srand(time(NULL));
-
-    // we have X nxp double matrix as input and y classes vector with c unique values
-    size_t n = 10000;
-    size_t p = 10;
-    size_t max_c = 5;
-    printf("Max number of classes: %zu\n", max_c);
-
-    // initialize X
-    double** _X = generate_X(n, p);
-    double* X = c_contiguous_array(_X, n, p);
-
-    // initialize y - c classes
-    size_t* y = generate_y(_X, n, p, max_c);
-    // size_t* y = generate_binary_y(X, n, p);
-
-    // we should check if there are at least 2 classes
-    // detecting actual number of classes
-    size_t c = get_classes(y, n);
-    printf("Detected number of classes: %zu\n", c);
-
-    printf("Initializing indexes...\n");
-    idx_array indexes = init_indexes(n); // maybe change the method to return just the array
-
-    // initialize the tree
-    printf("Initializing the tree...\n");
-
-    // select impurity function
-    impurity_func_t impurity_func = gini_from_counts;
-    // or entropy
-    // double (*impurity_func)(idx_array, size_t) = entropy_from_counts;
-
-    // idx_array counts_root = get_counts(c, y, indexes.data, 0, n);
-    // double_array probs_root = get_probs_from_counts(counts_root, n);
-    // double impurity_root = impurity_func(counts_root, n);
-    // free(counts_root.data);
-
-    // Node* root = init_node(0, &probs_root, impurity_root);
-    // printf("Initial impurity: %f\n", root->impurity);
-
-    Node* root = NULL;
-
-    printf("Setting hyperparameters...\n");
-    size_t max_height = INT_MAX; // no limit on the height
-    size_t min_samples_split = 10;
-    size_t min_samples_leaf = 5;
-    size_t max_features = 4;
-    // build the tree
-    printf("Fitting the tree...\n");
-    int random_state = 44; // for reproducibility
-    pcg32_random_t rng;
-    rng.state = random_state;
-    rng.inc = INC_DEFAULT;
-    pcg32_random_r(&rng); // advance state to avoid initial low-quality output
-
-    tree_fit(&root, X, y, n, p, c, impurity_func, max_height, min_samples_split, min_samples_leaf, max_features, &rng);
-    // split(root, X, y, p, c, indexes.data, 0, n, impurity_func, max_height, min_samples_split, min_samples_leaf, max_features, &rng);
-    printf("The tree is fitted\n");
-
-    printf("Printing the tree\n");
-    // inspect_tree_node(root, max_height);
-
-    // prediction
-    printf("Prediction...\n");
-    size_t* y_pred = tree_predict(root, X, n, p);
-    double acc = accuracy(y, y_pred, n);
-    printf("Accuracy: %f\n", acc);
-
-    // free X, y, indexes and tree nodes
-    printf("Clearing the memory...\n");
-    free_X(_X, n);
-    free(X);
-    free(y);
-    free(y_pred);
-    free(indexes.data);
-    free_tree(root);
-}
-
-int main() {
-
-    printf("Running tree test...\n");
-    tree_test();
-
-    printf("Program finished\n");
-    
-    return 0;
-}
-
