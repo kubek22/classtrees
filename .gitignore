@@ -67,7 +67,8 @@ __pycache__/
 
 # Distribution / packaging
 .Python
-build/
+# Only ignore build/ at the root
+/build/
 develop-eggs/
 dist/
 downloads/
