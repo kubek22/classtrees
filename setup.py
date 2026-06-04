@@ -1,5 +1,13 @@
 from setuptools import setup, Extension
 import numpy
+import sys
+
+if sys.platform == "win32":
+    extra_compile_args = ["/O2", "/openmp"]
+    extra_link_args = []
+else:
+    extra_compile_args = ["-O3", "-DNDEBUG", "-fopenmp"]
+    extra_link_args = ["-fopenmp"]
 
 ext_modules = [
     Extension(
@@ -10,8 +18,8 @@ ext_modules = [
                  "src/classtrees/randomforest.c",
                  "src/classtrees/checks.c",],
         include_dirs=[numpy.get_include(), "src/classtrees"],
-        extra_compile_args=["-O3", "-DNDEBUG", "-fopenmp"],
-        extra_link_args=["-fopenmp"]
+        extra_compile_args=extra_compile_args,
+        extra_link_args=extra_link_args,
     )
 ]
 
