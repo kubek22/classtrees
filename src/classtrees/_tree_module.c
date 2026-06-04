@@ -8,6 +8,7 @@
 #include <Python.h>
 #include <math.h>
 #include <limits.h>
+#include <assert.h>
 
 #include "tree.h"
 #include "random.h"
