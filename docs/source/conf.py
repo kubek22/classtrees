@@ -1,42 +1,23 @@
-# Configuration file for the Sphinx documentation builder.
-#
-# For the full list of built-in configuration values, see the documentation:
-# https://www.sphinx-doc.org/en/master/usage/configuration.html
-
-# -- Project information -----------------------------------------------------
-# https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
-
 project = 'classtrees'
 copyright = '2026, Jakub Sawicki'
 author = 'Jakub Sawicki'
 release = '1.1.0'
-
-# -- General configuration ---------------------------------------------------
-# https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
 
 extensions = [
     "sphinx.ext.autodoc",
     "numpydoc",
 ]
 
-
 templates_path = ['_templates']
 exclude_patterns = []
 
 autodoc_mock_imports = ["classtrees._tree_module"]
 
-
-# -- Options for HTML output -------------------------------------------------
-# https://www.sphinx-doc.org/en/master/usage/configuration.html#options-for-html-output
-
 html_theme = "sphinx_rtd_theme"
 html_static_path = ['_static']
 
-
 import os
 import sys
+sys.path.insert(0, os.path.abspath("../../../src"))
 
-sys.path.insert(0, os.path.abspath("../../src"))
-
-# run from docs:
-# sphinx-build -b html source build/html
+# sphinx-build -b html docs/source docs/

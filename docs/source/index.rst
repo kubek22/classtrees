@@ -14,4 +14,3 @@ Python package providing an implementation of decision trees and random forest c
    :caption: Contents:
 
    api
-
