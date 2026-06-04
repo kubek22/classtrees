@@ -24,6 +24,10 @@ classifiers = [
   "Development Status :: 4 - Beta",
   "Programming Language :: Python"
 ]
+[project.urls]
+Homepage = "https://github.com/kubek22/classtrees"
+Documentation = "https://kubek22.github.io/classtrees/"
+Repository = "https://github.com/kubek22/classtrees"
 [project.optional-dependencies]
 test = [
     "pytest",
