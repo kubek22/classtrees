@@ -17,7 +17,7 @@ ext_modules = [
 
 setup(
     name="classtrees",
-    version="1.0.0",
+    version="1.1.0",
     package_dir={"": "src"},
     packages=["classtrees"],
     ext_modules=ext_modules,

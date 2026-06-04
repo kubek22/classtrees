@@ -5,19 +5,20 @@ requires = [
   "numpy"
 ]
 build-backend = "setuptools.build_meta"
-dependencies = [
-  "numpy",
-]
 [project]
 name = "classtrees"
 version = "1.1.0"
 requires-python = ">=3.10"
+dependencies = [
+  "numpy",
+]
 authors = [
   {name = "Jakub Sawicki"}
 ]
 description = "Python package implementing classification trees."
 readme = "README.md"
-license = { file = "LICENSE" }
+license = "BSD-3-Clause"
+license-files = ["LICENSE", "THIRD_PARTY_LICENSES.txt"]
 keywords = ["tree", "classification", "samples", "machine learning"]
 classifiers = [
   "Development Status :: 4 - Beta",
@@ -30,3 +31,9 @@ test = [
     "numpy",
     "scikit-learn",
 ]
+[tool.setuptools]
+include-package-data = true
+
+[tool.setuptools.package-data]
+classtrees = ["*.h"]
+
