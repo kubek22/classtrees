@@ -41,3 +41,12 @@ include-package-data = true
 [tool.setuptools.package-data]
 classtrees = ["*.h"]
 
+[tool.cibuildwheel]
+build = "cp310-* cp311-* cp312-*"
+skip = "cp310-win32 cp311-win32 cp312-win32"
+
+[tool.cibuildwheel.linux]
+before-all = "yum install -y openmp || true"
+
+[tool.cibuildwheel.macos]
+archs = ["x86_64", "arm64"]
