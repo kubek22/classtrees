@@ -29,14 +29,13 @@ def test_proba_shape():
     
 def test_proba_class_order_stability():
     X = np.random.randn(100, 3)
-    y = np.array([1, 0] * 50, dtype=np.int64)  # deliberately unordered
+    y = np.array([1, 0] * 50, dtype=np.int64)
 
     tree = ClassTree()
     tree.fit(X, y)
 
     proba = tree.predict_proba(X)
 
-    # probabilities must align with sorted unique classes (assumption)
     classes = np.unique(y)
     assert proba.shape[1] == len(classes)
 

@@ -119,13 +119,12 @@ def test_fit_produces_valid_model():
     assert len(preds) == len(y)
 
 def test_fit_non_contiguous_arrays():
-    # Create contiguous base array
     X_base = np.random.randn(20, 5)
     y_base = np.random.randint(0, 2, size=20)
 
-    # Make non-contiguous views
-    X = X_base[:, ::2]   # stride view (non-contiguous)
-    y = y_base[::2]      # also non-contiguous
+    # non-contiguous views
+    X = X_base[:, ::2]
+    y = y_base[::2]
 
     assert not X.flags["C_CONTIGUOUS"]
     assert not y.flags["C_CONTIGUOUS"]

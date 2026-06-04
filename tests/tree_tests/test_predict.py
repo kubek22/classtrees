@@ -29,7 +29,7 @@ def test_predict_wrong_feature_dimension():
 
     tree.fit(X, y)
 
-    X_bad = np.random.randn(10, 5)  # wrong feature count
+    X_bad = np.random.randn(10, 5)
 
     with pytest.raises(Exception):
         tree.predict(X_bad)

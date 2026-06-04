@@ -29,7 +29,7 @@ def test_predict_wrong_feature_dimension():
 
     rf.fit(X, y)
 
-    X_bad = np.random.randn(10, 5)  # wrong feature count
+    X_bad = np.random.randn(10, 5)  # wrong number of features
 
     with pytest.raises(Exception):
         rf.predict(X_bad)

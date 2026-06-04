@@ -40,15 +40,15 @@ def test_fit_param_combinations_sanity(
 
     preds = rf.predict(X)
 
-    # ---- type checks
+    # type checks
     assert isinstance(preds, np.ndarray)
     assert preds.dtype == np.int64
     assert preds.shape == (X.shape[0],)
 
-    # ---- validity checks
+    # validity checks
     assert np.all(np.isin(preds, [0, 1]))
 
-    # ---- sanity accuracy (not random)
+    # accuracy better than random
     acc = (preds == y).mean()
     assert acc >= 0.55
     

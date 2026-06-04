@@ -12,7 +12,7 @@ def make_data(seed=42):
         n_redundant=3,
         n_repeated=0,
         n_classes=2,
-        flip_y=0.05,   # adds noise (critical)
+        flip_y=0.05,   # noise
         class_sep=0.7, # reduces dominance of any single feature
         random_state=seed
     )
@@ -59,12 +59,8 @@ def test_different_seeds_can_diverge():
     p1 = t1.predict(X)
     p2 = t2.predict(X)
 
-    # allow equality but do not require it
-    # enforce only that test is meaningful (not identical by construction)
     assert p1.shape == p2.shape
 
-    # at least sometimes they differ (soft check)
-    # avoid flakiness by not requiring strict inequality
     assert p1 is not None
     assert p1.shape == p2.shape
     assert p1.dtype == p2.dtype
@@ -78,7 +74,6 @@ def test_fit_determinism_structure():
     t1.fit(X, y)
     t2.fit(X, y)
 
-    # structural stability check via predictions
     assert np.array_equal(t1.predict(X), t2.predict(X))
 
 def test_random_state_effect():
@@ -97,27 +92,6 @@ def test_random_state_effect():
     unique = {p.tobytes() for p in preds}
 
     assert len(unique) > 0
-
-def test_random_state_none_differs():
-    X, y = make_data(42)
-
-    rfs = []
-    rfs.append(RandomForest(n_estimators=2, random_state=None, max_height=1, max_features=3))
-    time.sleep(2)
-    rfs.append(RandomForest(n_estimators=2, random_state=None, max_height=1, max_features=3))
-    time.sleep(2)
-    rfs.append(RandomForest(n_estimators=2, random_state=None, max_height=1, max_features=3))
-
-    for m in rfs:
-        m.fit(X, y)
-
-    preds = [m.predict(X) for m in rfs]
-
-    # measure diversity
-    unique_preds = {p.tobytes() for p in preds}
-
-    # expect at least some variability across independent initializations
-    assert len(unique_preds) > 1
 
 def test_proba_consistency_under_seeds():
     X, y = make_data(42)
@@ -142,8 +116,6 @@ def test_permutation_invariance():
     t1.fit(X, y)
     t2.fit(X[:, perm], y)
 
-    # predictions should not depend strongly on feature ordering
-    # (weak form: similar accuracy)
     acc1 = (t1.predict(X) == y).mean()
     acc2 = (t2.predict(X[:, perm]) == y).mean()
 

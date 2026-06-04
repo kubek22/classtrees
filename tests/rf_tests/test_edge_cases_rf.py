@@ -13,7 +13,7 @@ def test_no_infinite_loop_and_finite_structure():
     rf.fit(X, y)
     duration = time.time() - start
 
-    # must finish quickly
+    # should finish quickly
     assert duration < 3.5
 
 def test_prediction_variance_exists():

@@ -13,7 +13,6 @@ def test_no_infinite_loop_and_finite_structure():
     tree.fit(X, y)
     duration = time.time() - start
 
-    # must finish quickly
     assert duration < 1.5
 
 def test_prediction_variance_exists():
@@ -25,5 +24,4 @@ def test_prediction_variance_exists():
 
     preds = tree.predict(X)
 
-    # not all identical (would indicate broken tree)
     assert len(np.unique(preds)) > 1
