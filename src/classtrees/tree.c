@@ -1,5 +1,5 @@
 #include "tree.h"
-#include "assert.h"
+#include "ct_assert.h"
 #include "random.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -51,16 +51,6 @@ size_t get_classes(size_t* y, size_t n) {
     return ret + 1;
 }
 
-static double_array zeros_array(size_t size) {
-    double_array ret;
-    ret.size = size;
-    ret.data = (double*)malloc(size * sizeof(double));
-    for (size_t i=0; i<size; i++) {
-        ret.data[i] = 0.0;
-    }
-    return ret;
-}
-
 static idx_array zeros_idx_array(size_t size) {
     idx_array ret;
     ret.size = size;
@@ -103,29 +93,6 @@ static double_array get_probs_from_counts(idx_array counts, size_t n) {
     }
     // ensure normalization
     ret.data[ret.size - 1] = 1.0 - sum;
-    return ret;
-}
-
-static double_array get_probs(size_t c, const size_t* y, size_t* indexes, size_t start_idx, size_t end_idx) {
-    ASSERT(c >= 1);
-    ASSERT(y);
-    ASSERT(indexes);
-    ASSERT(end_idx - start_idx >= 1);
-
-    // initializing probs array with zeros
-    double_array ret = zeros_array(c);
-    // counting classes
-    size_t sum = end_idx - start_idx;
-    // size_t i = start_idx;
-    while (start_idx < end_idx) {
-        size_t class = y[indexes[start_idx]];
-        ret.data[class] += 1.0;
-        start_idx++;
-    }
-    // normalizing
-    for (size_t i=0; i<ret.size; i++) {
-        ret.data[i] /= (double)sum;
-    }
     return ret;
 }
 

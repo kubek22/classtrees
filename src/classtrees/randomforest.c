@@ -1,6 +1,6 @@
 #include "tree.h"
 #include "tree_bootstrap.h"
-#include "assert.h"
+#include "ct_assert.h"
 #include "random.h"
 #include <omp.h>
 #include <stdlib.h>

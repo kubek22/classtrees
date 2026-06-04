@@ -1,5 +1,5 @@
 #include "tree_bootstrap.h"
-#include "assert.h"
+#include "ct_assert.h"
 #include <math.h>
 #include <stdlib.h>
 
