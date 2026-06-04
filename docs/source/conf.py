@@ -1,7 +1,11 @@
+import importlib
+
 project = 'classtrees'
 copyright = '2026, Jakub Sawicki'
 author = 'Jakub Sawicki'
-release = '1.1.0'
+
+release = importlib.metadata.version("classtrees")
+version = release
 
 extensions = [
     "sphinx.ext.autodoc",
