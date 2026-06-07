@@ -106,7 +106,8 @@ class RandomForest:
         >>> clf.fit(X, y)
         """
 
-        return self._forest.rffit(X, y)
+        self._forest.rffit(X, y)
+        return self
 
     def predict(self, X):
         """

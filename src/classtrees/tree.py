@@ -86,7 +86,8 @@ class ClassTree:
         >>> clf.fit(X, y)
         """
 
-        return self._tree.fit(X, y)
+        self._tree.fit(X, y)
+        return self
 
     def predict(self, X):
         """
